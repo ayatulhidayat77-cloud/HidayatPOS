@@ -536,8 +536,19 @@
   <div id="mainWrapperContainer" class="flex-1 flex flex-col md:flex-row max-w-7xl w-full mx-auto p-2 sm:p-4 gap-3 sm:gap-4">
 
     <!-- NAVIGATION SIDEBAR -->
-    <aside class="w-full md:w-56 bg-white rounded-2xl shadow-sm p-3 border border-slate-200 flex-shrink-0 no-print">
-      <nav class="grid grid-cols-4 md:grid-cols-1 gap-1" id="mainNavContainer">
+    <aside id="mobileNavAside" class="w-full md:w-56 bg-white rounded-2xl shadow-sm p-2.5 md:p-3 border border-slate-200 flex-shrink-0 no-print">
+      <!-- Toggle Buka/Sembunyikan Navigation Grid Khusus Layar Ponsel -->
+      <div class="md:hidden flex items-center justify-between gap-2 px-1 py-0.5">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="w-2 h-2 rounded-full bg-indigo-600 flex-shrink-0"></span>
+          <span class="text-[11px] font-extrabold text-slate-700 truncate">Menu: <span id="mobileActiveMenuName" class="text-indigo-700">Kasir (POS)</span></span>
+        </div>
+        <button type="button" id="btnToggleMobileNavGrid" onclick="toggleMobileNavGrid()" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-extrabold flex items-center gap-1.5 flex-shrink-0 transition">
+          <i id="mobileNavGridChevron" class="fa-solid fa-chevron-up text-[10px]"></i>
+          <span id="mobileNavGridToggleLabel">Sembunyikan Menu</span>
+        </button>
+      </div>
+      <nav class="grid grid-cols-4 md:grid-cols-1 gap-1 mt-2 md:mt-0" id="mainNavContainer">
         <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex flex-col md:flex-row items-center md:space-x-3 p-2 md:px-3 md:py-2.5 rounded-xl font-semibold text-xs md:text-sm text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-chart-pie md:w-5 text-center text-base md:text-lg"></i>
           <span class="text-[10px] md:text-sm mt-1 md:mt-0">Dashboard</span>
@@ -619,7 +630,7 @@
       </nav>
 
       <!-- Mobile More Menu Toggle Button -->
-      <div class="mt-2 pt-2 border-t border-slate-100 md:hidden flex justify-between items-center text-xs text-slate-500 font-semibold px-1">
+      <div id="mobileMoreMenuBar" class="mt-2 pt-2 border-t border-slate-100 md:hidden flex justify-between items-center text-xs text-slate-500 font-semibold px-1">
         <span>Menu Lainnya:</span>
         <button onclick="toggleMobileSecondaryNav()" class="bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg text-slate-700">
           <i class="fa-solid fa-ellipsis-vertical"></i> Menu Lengkap
@@ -1683,6 +1694,10 @@
               <i class="fa-solid fa-cloud-arrow-down"></i>
               <span>Tarik Barang dari Google</span>
             </button>
+            <button type="button" onclick="openClearProductsWithAuthModal()" title="Hapus / hilangkan seluruh data barang (lokal &amp; sinkronisasi cloud) dengan Password/PIN Akun" class="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1 shadow-xs transition">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>Hapus Barang (PIN/Pass)</span>
+            </button>
             <button type="button" onclick="openGoogleSyncModal()" title="Pengaturan Akun Google, Google Drive Apps Script &amp; Mode Sinkronisasi Lintas Perangkat" class="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-[11px] font-bold flex items-center gap-1 transition">
               <i class="fa-solid fa-gear text-blue-600"></i>
               <span>Pengaturan Cloud</span>
@@ -2671,6 +2686,27 @@
         <div class="tab-inner-title-block hidden">
           <h2 class="text-lg font-extrabold text-slate-800">Pengaturan Toko, Tata Letak Resi Profesional &amp; Backup</h2>
           <p class="text-xs text-slate-500">Sesuaikan layout cetak struk kasir agar tampil rapi, profesional, dan elegan.</p>
+        </div>
+
+        <div class="bg-gradient-to-r from-blue-50 via-indigo-50 to-emerald-50 border border-blue-200 rounded-2xl p-3.5 max-w-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div class="min-w-0">
+            <h3 class="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+              <i class="fa-brands fa-google text-blue-600"></i>
+              <span>Sinkronisasi Akun Google (Semua Menu &amp; Pengaturan Lintas Perangkat)</span>
+            </h3>
+            <p class="text-[11px] text-slate-600 mt-0.5">Sinkronkan Pengaturan Toko, Transaksi, Pelanggan, Hutang/Piutang, dan Data Barang ke semua perangkat Anda.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5 flex-shrink-0">
+            <button type="button" onclick="syncPushToGoogleAccount(true)" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 shadow-xs transition">
+              <i class="fa-solid fa-cloud-arrow-up"></i> <span>Push Semua</span>
+            </button>
+            <button type="button" onclick="syncPullFromGoogleAccount(true)" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 shadow-xs transition">
+              <i class="fa-solid fa-cloud-arrow-down"></i> <span>Tarik Semua</span>
+            </button>
+            <button type="button" onclick="openGoogleSyncModal()" class="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-[11px] font-bold">
+              <i class="fa-solid fa-gear text-blue-600"></i>
+            </button>
+          </div>
         </div>
 
         <form id="storeSettingsForm" onsubmit="saveSettings(event)" class="space-y-4 max-w-2xl">
@@ -4790,6 +4826,50 @@
   </div>
 
   <!-- Modal Login Akun Google & Sinkronisasi Cloud Data Barang -->
+  <!-- Modal Verifikasi Password/PIN untuk Hapus Data Barang & Sinkron Cloud -->
+  <div id="clearProductsWithAuthModal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-rose-200 overflow-hidden">
+      <div class="px-5 py-4 bg-gradient-to-r from-rose-600 to-rose-700 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
+            <i class="fa-solid fa-shield-halved text-base"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm">Hapus Data Barang (Verifikasi Akun)</h3>
+            <p class="text-[11px] text-rose-100">Masukkan Password atau PIN akun untuk menghapus data barang</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('clearProductsWithAuthModal')" class="w-8 h-8 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <form onsubmit="confirmClearProductsWithAccountAuth(event)" class="p-5 space-y-4">
+        <div class="bg-rose-50 border border-rose-200 rounded-xl p-3 text-[11px] text-rose-800 leading-relaxed">
+          Tindakan ini akan <b>menghapus seluruh Data Barang</b> di perangkat ini. Jika opsi sinkronisasi dicentang, penghapusan juga disinkronkan ke Akun Google lintas perangkat.
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Password atau PIN Akun</label>
+          <div class="relative">
+            <input type="password" id="clearProductsAuthInput" required placeholder="Masukkan Password atau PIN (Admin/Kasir)..." class="w-full p-2.5 pr-10 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-rose-500">
+            <button type="button" onclick="const inp=document.getElementById('clearProductsAuthInput'); inp.type = inp.type==='password'?'text':'password';" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <label class="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl p-2.5 cursor-pointer">
+          <input type="checkbox" id="clearProductsSyncCloudCheck" checked class="mt-0.5 accent-blue-600">
+          <span class="text-[11px] font-semibold text-blue-900">Sinkronkan penghapusan data barang ke Cloud Akun Google &amp; seluruh perangkat terhubung</span>
+        </label>
+        <div class="flex justify-end gap-2 pt-1">
+          <button type="button" onclick="closeModal('clearProductsWithAuthModal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-trash-can"></i> <span>Verifikasi &amp; Hapus Barang</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="googleSyncModal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
     <div class="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden my-auto">
       <div class="flex items-center justify-between px-5 sm:px-6 py-4 bg-gradient-to-r from-slate-50 to-blue-50/40 border-b border-slate-200 flex-shrink-0">
@@ -4886,15 +4966,28 @@
           </div>
         </div>
 
-        <!-- Tombol Sinkronisasi Manual Push & Pull -->
+        <!-- Tombol Sinkronisasi Manual Push & Pull Semua Menu -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
           <button type="button" onclick="syncPushToGoogleAccount(true)" class="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm transition">
             <i class="fa-solid fa-cloud-arrow-up"></i>
-            <span>Simpan / Push ke Google</span>
+            <span>Push Semua Menu &amp; Pengaturan</span>
           </button>
           <button type="button" onclick="syncPullFromGoogleAccount(true)" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm transition">
             <i class="fa-solid fa-cloud-arrow-down"></i>
-            <span>Ambil / Pull dari Google</span>
+            <span>Tarik Semua Menu &amp; Pengaturan</span>
+          </button>
+        </div>
+
+        <!-- Hapus / Hilangkan Data Barang dengan Verifikasi Password/PIN Akun -->
+        <div class="bg-rose-50 border border-rose-200 rounded-2xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div>
+            <p class="text-[11px] font-extrabold text-rose-800 flex items-center gap-1">
+              <i class="fa-solid fa-triangle-exclamation"></i> Hapus / Hilangkan Data Barang (Dengan Password/PIN)
+            </p>
+            <p class="text-[10px] text-rose-700">Kosongkan seluruh data barang secara lokal &amp; sinkronkan ke perangkat lain.</p>
+          </div>
+          <button type="button" onclick="openClearProductsWithAuthModal()" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 flex-shrink-0 shadow-xs transition">
+            <i class="fa-solid fa-lock"></i> <span>Hapus Data Barang</span>
           </button>
         </div>
       </div>
@@ -5557,7 +5650,8 @@
       }
 
       const customers = await getAll('customers');
-      if (customers.length === 0) {
+      if (customers.length === 0 && !localStorage.getItem('aladinpay_customers_seeded')) {
+        localStorage.setItem('aladinpay_customers_seeded', '1');
         await putItem('customers', { name: 'Eceran', phone: '0812-3456-7890', address: 'Sekitar Toko', balance: 150000 });
         await putItem('customers', { name: 'Warungan', phone: '0857-9876-5432', address: 'Pasar Minggu', balance: 500000 });
         await putItem('customers', { name: 'Ibu Hj. Siti (Langganan)', phone: '0813-2233-4455', address: 'Kp. Gandaria RT 02', balance: 350000 });
@@ -5868,6 +5962,7 @@
       await loadStoreSettings();
       await populateLoginPinUsers();
       
+      initMobileNavGridState();
       startRealtimeClock();
       loadPrayerTimes();
       await updateExpiryNotifications();
@@ -5913,7 +6008,7 @@
            let savedTab = 'pos';
            try { savedTab = localStorage.getItem('pos_activeTab') || 'pos'; } catch (e) {}
            if (!document.getElementById(`tab-${savedTab}`)) savedTab = 'pos';
-           switchTab(savedTab);
+           switchTab(savedTab, false);
            await renderAll();
          } catch (e) {
            try { localStorage.removeItem('pos_loggedInUser'); } catch (err) {}
@@ -6898,7 +6993,7 @@
       if (switchDefaultTab) {
         let savedTab = null;
         try { savedTab = localStorage.getItem('pos_activeTab'); } catch (e) {}
-        switchTab(savedTab || 'pos');
+        switchTab(savedTab || 'pos', false);
       }
       closeModal('switchUserModal');
     }
@@ -7213,7 +7308,53 @@
       }
     }
 
-    function switchTab(tabId) {
+    const MOBILE_NAV_GRID_STORAGE_KEY = 'aladinpay_mobile_nav_grid_open';
+
+    function setMobileNavGridOpen(isOpen, persist = true) {
+      const nav = document.getElementById('mainNavContainer');
+      const moreBar = document.getElementById('mobileMoreMenuBar');
+      const secNav = document.getElementById('mobileSecondaryNav');
+      const label = document.getElementById('mobileNavGridToggleLabel');
+      const icon = document.getElementById('mobileNavGridChevron');
+      if (!nav) return;
+
+      if (isOpen) {
+        nav.classList.remove('hidden');
+        nav.classList.add('grid');
+        if (moreBar) moreBar.classList.remove('hidden');
+        if (label) label.innerText = 'Sembunyikan Menu';
+        if (icon) icon.className = 'fa-solid fa-chevron-up text-[10px]';
+      } else {
+        nav.classList.add('hidden');
+        nav.classList.remove('grid');
+        nav.classList.add('md:grid');
+        if (moreBar) moreBar.classList.add('hidden');
+        if (secNav) secNav.classList.add('hidden');
+        if (label) label.innerText = 'Buka Menu';
+        if (icon) icon.className = 'fa-solid fa-chevron-down text-[10px]';
+      }
+      if (persist) {
+        try { localStorage.setItem(MOBILE_NAV_GRID_STORAGE_KEY, isOpen ? '1' : '0'); } catch (e) {}
+      }
+    }
+
+    function toggleMobileNavGrid() {
+      const nav = document.getElementById('mainNavContainer');
+      if (!nav) return;
+      const isCurrentlyHidden = nav.classList.contains('hidden');
+      setMobileNavGridOpen(isCurrentlyHidden, true);
+    }
+
+    function initMobileNavGridState() {
+      let saved = '1';
+      try {
+        const val = localStorage.getItem(MOBILE_NAV_GRID_STORAGE_KEY);
+        if (val === '0' || val === '1') saved = val;
+      } catch (e) {}
+      setMobileNavGridOpen(saved === '1', false);
+    }
+
+    function switchTab(tabId, autoCollapseMobile = true) {
       localStorage.setItem('pos_activeTab', tabId);
       if (tabId !== 'pos') {
         document.body.classList.remove('pos-scroll-focus');
@@ -7240,6 +7381,29 @@
       if (activeNav) {
         activeNav.classList.add('bg-indigo-50', 'text-indigo-700');
         activeNav.classList.remove('text-slate-600');
+      }
+
+      // Update label menu aktif di bar ponsel
+      const mobileActiveEl = document.getElementById('mobileActiveMenuName');
+      if (mobileActiveEl) {
+        const spanText = activeNav?.querySelector('span')?.innerText?.trim();
+        const tabLabels = {
+          dashboard: 'Dashboard', pos: 'Kasir (POS)', cashclose: 'Tutup Kasir',
+          history: 'Riwayat', products: 'Produk/Stok', expired: 'Expired Monitor',
+          purchases: 'Pembelian (PO)', suppliers: 'Supplier', customers: 'Pelanggan',
+          debts: 'Hutang / Piutang', reports: 'Laporan', users: 'Akun User',
+          settings: 'Pengaturan', network: 'Jaringan LAN', 'active-license': 'Lisensi Aktif'
+        };
+        mobileActiveEl.innerText = spanText || tabLabels[tabId] || tabId;
+      }
+
+      // Pada layar ponsel, otomatis tutup kotak Navigation Grid setelah memilih ikon agar fokus ke area transaksi
+      if (autoCollapseMobile && window.innerWidth < 768) {
+        setMobileNavGridOpen(false, true);
+        const mainEl = document.querySelector('main');
+        if (mainEl) {
+          setTimeout(() => mainEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+        }
       }
     }
 
@@ -10418,8 +10582,12 @@
         };
       });
 
+      const deletedCustSet = new Set(getDeletedCustomerNames().map(n => String(n).toLowerCase()));
       transactions.forEach(t => {
         const cName = t.customer || 'Umum';
+        if (!map[cName] && deletedCustSet.has(String(cName).trim().toLowerCase())) {
+          return;
+        }
         if (!map[cName]) {
           map[cName] = {
             id: null,
@@ -10644,12 +10812,46 @@
         address: document.getElementById('custAddress').value,
         balance: parseFloat(document.getElementById('custBalance').value) || 0
       };
-      if (id) customer.id = parseInt(id);
+      if (id) customer.id = isNaN(Number(id)) ? id : parseInt(id, 10);
+      removeDeletedCustomerName(customer.name);
       await putItem('customers', customer);
       closeModal('customerModal'); 
-      renderAll();
+      await renderAll();
     }
-    async function deleteCustomer(id) { if (await showConfirmModal('Hapus pelanggan ini?')) { await deleteItem('customers', id); renderAll(); } }
+
+    function getDeletedCustomerNames() {
+      try {
+        const raw = localStorage.getItem('aladinpay_deleted_customers');
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+      } catch (e) { return []; }
+    }
+    function addDeletedCustomerName(name) {
+      const clean = String(name || '').trim().toLowerCase();
+      if (!clean || clean === 'umum') return;
+      const set = new Set(getDeletedCustomerNames().map(n => String(n).toLowerCase()));
+      set.add(clean);
+      try { localStorage.setItem('aladinpay_deleted_customers', JSON.stringify(Array.from(set))); } catch (e) {}
+    }
+    function removeDeletedCustomerName(name) {
+      const clean = String(name || '').trim().toLowerCase();
+      if (!clean) return;
+      const next = getDeletedCustomerNames().filter(n => String(n).toLowerCase() !== clean);
+      try { localStorage.setItem('aladinpay_deleted_customers', JSON.stringify(next)); } catch (e) {}
+    }
+
+    async function deleteCustomer(id) {
+      if (await showConfirmModal('Hapus pelanggan ini?')) {
+        const allCustomers = await getAll('customers');
+        const target = allCustomers.find(c => String(c.id) === String(id));
+        if (target && target.name) {
+          addDeletedCustomerName(target.name);
+        }
+        const keyToDelete = target ? target.id : (isNaN(Number(id)) ? id : parseInt(id, 10));
+        await deleteItem('customers', keyToDelete);
+        await renderAll();
+      }
+    }
 
     /* ================= USER MANAGEMENT ================= */
     async function renderUserTable() {
@@ -13268,16 +13470,44 @@ function toggleGoogleAutoSync(enabled) {
   saveGoogleSyncState();
 }
 
+function collectLocalSettingsForSync() {
+  const keys = [
+    'pos_cashCloseStateMap',
+    'pos_autoCashCloseAfterMidnight',
+    'aladinpay_deleted_customers',
+    'aladinpay_customers_seeded',
+    'aladinDark',
+    'aladin_prod_modal_auto_fs'
+  ];
+  const out = {};
+  keys.forEach(k => {
+    const v = localStorage.getItem(k);
+    if (v !== null) out[k] = v;
+  });
+  return out;
+}
+
+function applyLocalSettingsFromSync(localSettings) {
+  if (!localSettings || typeof localSettings !== 'object') return;
+  Object.entries(localSettings).forEach(([k, v]) => {
+    if (typeof v === 'string') {
+      try { localStorage.setItem(k, v); } catch (e) {}
+    }
+  });
+}
+
 async function collectFullDatabaseSnapshot(compactImages = true) {
   const rawProducts = await getAll('products');
   const products = compactImages ? rawProducts.map(compactProductForCloud) : rawProducts;
   return {
-    version: 4,
+    version: 5,
     syncedAt: new Date().toISOString(),
     googleAccount: googleSyncState.email || '',
     senderDeviceId: typeof lanNetworkConfig !== 'undefined' ? lanNetworkConfig.deviceId : 'DEV-LOCAL',
     senderDeviceName: typeof lanNetworkConfig !== 'undefined' ? lanNetworkConfig.deviceName : 'Perangkat POS',
     deletedProductSkus: googleSyncState.deletedProductSkus || [],
+    productsClearedAt: googleSyncState.productsClearedAt || null,
+    replaceProducts: products.length === 0 && !!googleSyncState.productsClearedAt,
     products: products,
     transactions: await getAll('transactions'),
     suppliers: await getAll('suppliers'),
@@ -13287,7 +13517,8 @@ async function collectFullDatabaseSnapshot(compactImages = true) {
     stock_logs: await getAll('stock_logs'),
     audit_logs: await getAll('audit_logs'),
     users: await getAll('users'),
-    settings: await getAll('settings')
+    settings: await getAll('settings'),
+    localSettings: collectLocalSettingsForSync()
   };
 }
 
@@ -13374,7 +13605,21 @@ async function applyDatabaseSnapshotToIndexedDB(snapshot, customMergeMode = null
   isApplyingExternalSync = true;
   try {
     const effectiveMode = customMergeMode || googleSyncState.mergeMode || 'smart_sku';
-    if (Array.isArray(snapshot.products)) {
+    if (snapshot.localSettings) {
+      applyLocalSettingsFromSync(snapshot.localSettings);
+    }
+    if (snapshot.replaceProducts && Array.isArray(snapshot.products) && snapshot.products.length === 0 && db) {
+      await new Promise((res) => {
+        const tx = db.transaction('products', 'readwrite');
+        tx.objectStore('products').clear();
+        tx.oncomplete = () => res(true);
+        tx.onerror = () => res(false);
+      });
+      if (snapshot.productsClearedAt) {
+        googleSyncState.productsClearedAt = snapshot.productsClearedAt;
+        saveGoogleSyncState();
+      }
+    } else if (Array.isArray(snapshot.products)) {
       await mergeProductsToIndexedDB(snapshot.products, effectiveMode, snapshot.deletedProductSkus || []);
     }
 
@@ -13439,6 +13684,8 @@ function initGoogleAccountCloudRelay() {
       if (!googleCloudMqttClient) return;
       googleCloudMqttClient.subscribe(`${desiredBase}/manifest`, { qos: 0 });
       googleCloudMqttClient.subscribe(`${desiredBase}/prod_chunk/+`, { qos: 0 });
+      googleCloudMqttClient.subscribe(`${desiredBase}/full_manifest`, { qos: 0 });
+      googleCloudMqttClient.subscribe(`${desiredBase}/full_chunk/+`, { qos: 0 });
       googleCloudMqttClient.subscribe(`${desiredBase}/delta`, { qos: 0 });
       googleCloudMqttClient.subscribe(`${desiredBase}/presence`, { qos: 0 });
       googleCloudMqttClient.subscribe(`${desiredBase}/request_sync`, { qos: 0 });
@@ -13554,6 +13801,32 @@ function initGoogleAccountCloudRelay() {
         if (data.totalChunks) entry.totalChunks = data.totalChunks;
         entry.parts[data.chunkIndex] = Array.isArray(data.items) ? data.items : [];
         await checkAndApplyReassembledGoogleCloudChunks(data.syncId);
+        return;
+      }
+
+      if (topic.endsWith('/full_manifest')) {
+        if (!data.syncId || data.syncId === googleCloudLastAppliedFullSyncId) return;
+        if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
+        if (!googleCloudIncomingFullChunks[data.syncId]) {
+          googleCloudIncomingFullChunks[data.syncId] = { totalChunks: data.totalChunks || 0, parts: {}, meta: data };
+        } else {
+          googleCloudIncomingFullChunks[data.syncId].meta = data;
+          googleCloudIncomingFullChunks[data.syncId].totalChunks = data.totalChunks || 0;
+        }
+        await checkAndApplyReassembledFullCloudChunks(data.syncId);
+        return;
+      }
+
+      if (topic.includes('/full_chunk/')) {
+        if (!data.syncId || data.syncId === googleCloudLastAppliedFullSyncId) return;
+        if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
+        if (!googleCloudIncomingFullChunks[data.syncId]) {
+          googleCloudIncomingFullChunks[data.syncId] = { totalChunks: data.totalChunks || 0, parts: {}, meta: null };
+        }
+        const entry = googleCloudIncomingFullChunks[data.syncId];
+        if (data.totalChunks) entry.totalChunks = data.totalChunks;
+        entry.parts[data.chunkIndex] = typeof data.chunkStr === 'string' ? data.chunkStr : '';
+        await checkAndApplyReassembledFullCloudChunks(data.syncId);
       }
     });
 
@@ -13583,7 +13856,18 @@ async function checkAndApplyReassembledGoogleCloudChunks(syncId) {
   const deletedSkus = (entry.meta && Array.isArray(entry.meta.deletedProductSkus)) ? entry.meta.deletedProductSkus : [];
   delete googleCloudIncomingChunks[syncId];
 
-  if (combinedProducts.length > 0) {
+  if (entry.meta && entry.meta.replaceProducts && combinedProducts.length === 0 && db) {
+    await new Promise((res) => {
+      const tx = db.transaction('products', 'readwrite');
+      tx.objectStore('products').clear();
+      tx.oncomplete = () => res(true);
+      tx.onerror = () => res(false);
+    });
+    googleSyncState.productsClearedAt = entry.meta.productsClearedAt || new Date().toISOString();
+    googleSyncState.lastSync = new Date().toISOString();
+    saveGoogleSyncState();
+    await renderAll();
+  } else if (combinedProducts.length > 0) {
     await mergeProductsToIndexedDB(combinedProducts, googleSyncState.mergeMode || 'smart_sku', deletedSkus);
     googleSyncState.lastSync = new Date().toISOString();
     saveGoogleSyncState();
@@ -13675,11 +13959,123 @@ async function publishRetainedGoogleCloudProductsSnapshot() {
     senderDeviceName: myDevName,
     totalProducts: compactProducts.length,
     totalChunks: totalChunks,
+    replaceProducts: compactProducts.length === 0 && !!googleSyncState.productsClearedAt,
+    productsClearedAt: googleSyncState.productsClearedAt || null,
     deletedProductSkus: googleSyncState.deletedProductSkus || []
   });
   try {
     googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/manifest`, manifestPayload, { qos: 0, retain: true });
   } catch (e) {}
+
+  // Publish seluruh menu lain (Transaksi, Pengaturan, Pelanggan, Hutang/Piutang, dll.) via Cloud Relay
+  try {
+    const fullSnap = await collectFullDatabaseSnapshot(true);
+    delete fullSnap.products;
+    const fullStr = JSON.stringify(fullSnap);
+    const STR_CHUNK = 48000;
+    const fullTotal = Math.max(1, Math.ceil(fullStr.length / STR_CHUNK));
+    const fullSyncId = 'GFULL-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    googleCloudLastAppliedFullSyncId = fullSyncId;
+    for (let i = 0; i < fullTotal; i++) {
+      googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/full_chunk/${i}`, JSON.stringify({
+        syncId: fullSyncId,
+        chunkIndex: i,
+        totalChunks: fullTotal,
+        senderDeviceId: myDevId,
+        chunkStr: fullStr.slice(i * STR_CHUNK, (i + 1) * STR_CHUNK)
+      }), { qos: 0, retain: true });
+    }
+    googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/full_manifest`, JSON.stringify({
+      syncId: fullSyncId,
+      syncedAt: new Date().toISOString(),
+      senderDeviceId: myDevId,
+      senderDeviceName: myDevName,
+      totalChunks: fullTotal
+    }), { qos: 0, retain: true });
+  } catch (e) {}
+}
+
+let googleCloudLastAppliedFullSyncId = '';
+const googleCloudIncomingFullChunks = {};
+
+async function checkAndApplyReassembledFullCloudChunks(syncId) {
+  const entry = googleCloudIncomingFullChunks[syncId];
+  if (!entry || !entry.totalChunks || entry.totalChunks <= 0) return;
+  if (Object.keys(entry.parts).length < entry.totalChunks) return;
+  googleCloudLastAppliedFullSyncId = syncId;
+  let combinedStr = '';
+  for (let i = 0; i < entry.totalChunks; i++) {
+    combinedStr += (entry.parts[i] || '');
+  }
+  delete googleCloudIncomingFullChunks[syncId];
+  try {
+    const fullSnap = JSON.parse(combinedStr);
+    if (fullSnap && typeof fullSnap === 'object') {
+      await applyDatabaseSnapshotToIndexedDB(fullSnap, googleSyncState.mergeMode || 'smart_sku');
+      googleSyncState.lastSync = new Date().toISOString();
+      saveGoogleSyncState();
+    }
+  } catch (e) {}
+}
+
+function openClearProductsWithAuthModal() {
+  const inp = document.getElementById('clearProductsAuthInput');
+  if (inp) inp.value = '';
+  openModal('clearProductsWithAuthModal');
+}
+
+async function confirmClearProductsWithAccountAuth(e) {
+  e.preventDefault();
+  const authVal = (document.getElementById('clearProductsAuthInput')?.value || '').trim();
+  const syncCloud = !!document.getElementById('clearProductsSyncCloudCheck')?.checked;
+  if (!authVal) return;
+
+  const users = await getAll('users');
+  const matchedUser = users.find(u => String(u.password || '') === authVal || String(u.pin || '') === authVal);
+  if (!matchedUser) {
+    showCustomAlert('Verifikasi Gagal', 'Password atau PIN akun yang Anda masukkan salah!', 'danger');
+    return;
+  }
+
+  isApplyingExternalSync = true;
+  try {
+    await new Promise((res) => {
+      const tx = db.transaction('products', 'readwrite');
+      tx.objectStore('products').clear();
+      tx.oncomplete = () => res(true);
+      tx.onerror = () => res(false);
+    });
+  } finally {
+    isApplyingExternalSync = false;
+  }
+
+  googleSyncState.productsClearedAt = new Date().toISOString();
+  googleSyncState.deletedProductSkus = [];
+  saveGoogleSyncState();
+
+  try {
+    await putItem('audit_logs', {
+      timestamp: new Date().toISOString(),
+      user: matchedUser.name || matchedUser.username || 'Admin',
+      action: 'Hapus Semua Data Barang (Password/PIN)',
+      detail: syncCloud ? 'Dihapus lokal & disinkronkan ke Akun Google' : 'Dihapus lokal saja'
+    }, true);
+  } catch (err) {}
+
+  if (syncCloud && googleSyncState.connected && googleSyncState.email) {
+    broadcastGoogleAccountRealtimeDelta('clear', 'products', { productsClearedAt: googleSyncState.productsClearedAt });
+    await syncPushToGoogleAccount(false);
+  }
+
+  closeModal('clearProductsWithAuthModal');
+  await renderAll();
+  showCustomAlert(
+    'Data Barang Berhasil Dihapus',
+    syncCloud && googleSyncState.connected
+      ? `Seluruh data barang berhasil dihapus & disinkronkan ke akun Google (${googleSyncState.email}) untuk perangkat lain.`
+      : 'Seluruh data barang di perangkat ini berhasil dihapus setelah verifikasi akun.',
+    'warning'
+  );
 }
 
 function broadcastGoogleAccountRealtimeDelta(opType, storeName, payload) {
