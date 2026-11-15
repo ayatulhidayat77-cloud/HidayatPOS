@@ -8084,21 +8084,50 @@
       }
     }
 
+    let hasLoadedSavedCartState = false;
+
     function saveCartState() {
+      if (!hasLoadedSavedCartState) return;
       try {
         const state = {
-          items: currentCart.map(i => ({
-            productId: i.product.id,
-            sku: i.product.sku,
-            qty: i.qty,
-            selectedUnit: i.selectedUnit || 1,
-            price: i.price,
-            isCustomPrice: !!i.isCustomPrice,
-            discPct: parseFloat(i.discPct) || 0
-          })),
+          items: currentCart.map(i => {
+            const p = i.product || {};
+            return {
+              productId: p.id,
+              sku: p.sku || '',
+              qty: i.qty,
+              selectedUnit: i.selectedUnit || 1,
+              price: i.price,
+              isCustomPrice: !!i.isCustomPrice,
+              discPct: parseFloat(i.discPct) || 0,
+              productSnapshot: {
+                id: p.id,
+                sku: p.sku || '',
+                name: p.name || 'Produk',
+                category: p.category || 'Lainnya',
+                costPrice: p.costPrice || 0,
+                priceRetail: p.priceRetail || i.price || 0,
+                priceWholesale: p.priceWholesale || p.priceRetail || i.price || 0,
+                minWholesale: p.minWholesale || 1,
+                stock: p.stock || 0,
+                unit: p.unit || 'Pcs',
+                unit2: p.unit2 || '',
+                unit2Sku: p.unit2Sku || '',
+                unit2Qty: p.unit2Qty || 1,
+                unit2PriceRetail: p.unit2PriceRetail || 0,
+                unit2PriceWholesale: p.unit2PriceWholesale || 0,
+                unit3: p.unit3 || '',
+                unit3Sku: p.unit3Sku || '',
+                unit3Qty: p.unit3Qty || 1,
+                unit3PriceRetail: p.unit3PriceRetail || 0,
+                unit3PriceWholesale: p.unit3PriceWholesale || 0,
+                image: p.image || ''
+              }
+            };
+          }),
           priceMode: cartPriceMode,
           discount: parseFloat(document.getElementById('cartDiscount')?.value) || 0,
-          customer: document.getElementById('cartCustomerSelect')?.value || 'Umum'
+          customer: document.getElementById('cartCustomerSelect')?.value || window._savedCartCustomer || 'Umum'
         };
         window._savedCartCustomer = state.customer;
         localStorage.setItem('aladin_pos_cart_state', JSON.stringify(state));
@@ -8108,23 +8137,40 @@
     async function loadSavedCartState() {
       try {
         const raw = localStorage.getItem('aladin_pos_cart_state');
-        if (!raw) return;
+        if (!raw) {
+          hasLoadedSavedCartState = true;
+          return;
+        }
         const state = JSON.parse(raw);
-        const products = await getAll('products');
+        let products = [];
+        try { products = await getAll('products'); } catch (e) {}
+
         if (state && Array.isArray(state.items)) {
           const restored = [];
           state.items.forEach(savedItem => {
-            const prod = products.find(p => p.id === savedItem.productId || p.sku === savedItem.sku);
-            if (prod && prod.stock > 0) {
+            let prod = null;
+            if (savedItem.productId !== undefined && savedItem.productId !== null) {
+              prod = products.find(p => String(p.id) === String(savedItem.productId));
+            }
+            if (!prod && savedItem.sku) {
+              prod = products.find(p => p.sku && String(p.sku) === String(savedItem.sku));
+            }
+            if (!prod && savedItem.productSnapshot) {
+              prod = savedItem.productSnapshot;
+            }
+            if (prod) {
               const unitLevel = savedItem.selectedUnit || 1;
-              const mult = (getUnitInfoForProduct(prod, unitLevel)?.qty) || 1;
-              const maxAllowedQty = Math.max(1, Math.floor(prod.stock / mult));
-              const validQty = Math.min(savedItem.qty || 1, maxAllowedQty);
+              const mult = (typeof getUnitInfoForProduct === 'function' ? getUnitInfoForProduct(prod, unitLevel)?.qty : 1) || 1;
+              let validQty = parseFloat(savedItem.qty) || 1;
+              if (Number(prod.stock) > 0) {
+                const maxAllowedQty = Math.max(1, Math.floor(Number(prod.stock) / mult));
+                validQty = Math.min(validQty, maxAllowedQty);
+              }
               restored.push({
                 product: prod,
                 qty: validQty,
                 selectedUnit: unitLevel,
-                price: savedItem.price ?? prod.priceRetail,
+                price: savedItem.price ?? prod.priceRetail ?? 0,
                 isCustomPrice: !!savedItem.isCustomPrice,
                 discPct: parseFloat(savedItem.discPct) || 0
               });
@@ -8132,20 +8178,26 @@
           });
           currentCart = restored;
         }
-        if (state.priceMode === 'grosir' || state.priceMode === 'eceran') {
+        if (state && (state.priceMode === 'grosir' || state.priceMode === 'eceran')) {
           cartPriceMode = state.priceMode;
           syncPosPriceModeButtons(cartPriceMode);
         }
-        if (typeof state.discount === 'number' && document.getElementById('cartDiscount')) {
+        if (state && typeof state.discount === 'number' && document.getElementById('cartDiscount')) {
           document.getElementById('cartDiscount').value = state.discount;
         }
-        if (state.customer) {
+        if (state && state.customer) {
           window._savedCartCustomer = state.customer;
           const sel = document.getElementById('cartCustomerSelect');
-          if (sel) sel.value = state.customer;
+          if (sel && [...sel.options].some(o => o.value === state.customer)) {
+            sel.value = state.customer;
+          }
         }
       } catch (e) {}
+      hasLoadedSavedCartState = true;
     }
+
+    window.addEventListener('beforeunload', () => { saveCartState(); });
+    window.addEventListener('pagehide', () => { saveCartState(); });
 
     function saveHeldCartsState() {
       try {
