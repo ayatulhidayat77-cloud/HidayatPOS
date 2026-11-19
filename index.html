@@ -941,7 +941,7 @@
                 <!-- Input Barcode / SKU / Pencarian Cepat -->
                 <div id="posSearchGroup" class="relative flex-1 min-w-[180px] flex items-center">
                   <i id="posSearchIcon" class="fa-solid fa-barcode absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors"></i>
-                  <input type="text" id="posSearch" onfocus="setPosSearchFocusState(true)" onblur="setPosSearchFocusState(false)" oninput="currentPosPage = 1; setPosSearchFocusState(true); renderPosProducts(); renderPosQuickSuggest();" onkeydown="handlePosBarcodeInputKeydown(event)" placeholder="Scan barcode atau ketik SKU / nama barang..." class="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-red-600 focus:ring-2 focus:ring-red-500/20 text-xs sm:text-sm font-semibold text-slate-800 shadow-inner transition-all duration-200">
+                  <input type="text" id="posSearch" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onfocus="setPosSearchFocusState(true)" onblur="setPosSearchFocusState(false)" oninput="handlePosSearchInput(event)" onkeydown="handlePosBarcodeInputKeydown(event)" placeholder="Scan barcode atau ketik SKU / nama barang..." class="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-red-600 focus:ring-2 focus:ring-red-500/20 text-xs sm:text-sm font-semibold text-slate-800 shadow-inner transition-all duration-200">
                   <button type="button" id="btnClearPosSearch" onclick="clearPosSearchInput()" title="Bersihkan Pencarian" class="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 hover:bg-rose-100 text-slate-500 hover:text-rose-600 items-center justify-center text-[10px] transition hidden">
                     <i class="fa-solid fa-xmark"></i>
                   </button>
@@ -972,6 +972,8 @@
                   <span id="textScanBarcode" class="hidden">Scan Barcode</span>
                 </button>
               </div>
+              <!-- Status Umpan Balik Cepat Scanner Barcode (Non-Blocking) -->
+              <div id="posScanFeedback" class="hidden mt-1.5 px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center justify-between gap-2 transition-all duration-150"></div>
             </div>
 
             <!-- Right: Red-Bordered TOTAL TAGIHAN Display Card -->
@@ -5555,12 +5557,116 @@
       });
     }
 
+    /* ================= IN-MEMORY PRODUCT CACHE & O(1) BARCODE INDEX ================= */
+    let _productsCacheList = null;
+    let _productsCachePromise = null;
+    let _barcodeIndexMap = new Map();
+    let _productByIdMap = new Map();
+    let _productSearchIndex = new WeakMap();
+
+    function invalidateProductsCache() {
+      _productsCacheList = null;
+      _productsCachePromise = null;
+      _barcodeIndexMap.clear();
+      _productByIdMap.clear();
+      _productSearchIndex = new WeakMap();
+    }
+
+    function _buildProductSearchString(prod) {
+      if (!prod) return '';
+      const parts = [
+        prod.name || '',
+        prod.sku || '',
+        typeof getProductRackDisplay === 'function' ? getProductRackDisplay(prod) : '',
+        prod.expiredDate ? String(prod.expiredDate) : ''
+      ];
+      if (typeof getAllUnitsOfProduct === 'function') {
+        const units = getAllUnitsOfProduct(prod);
+        for (let i = 0; i < units.length; i++) {
+          if (units[i].sku) parts.push(units[i].sku);
+          if (units[i].name) parts.push(units[i].name);
+        }
+      }
+      return parts.join(' ').toLowerCase();
+    }
+
+    function _rebuildProductsCacheIndex(products) {
+      _barcodeIndexMap.clear();
+      _productByIdMap.clear();
+      _productSearchIndex = new WeakMap();
+      if (!Array.isArray(products)) return;
+      for (let i = 0; i < products.length; i++) {
+        const p = products[i];
+        if (!p) continue;
+        if (p.id !== undefined) _productByIdMap.set(p.id, p);
+        _productSearchIndex.set(p, _buildProductSearchString(p));
+        if (typeof getAllUnitsOfProduct === 'function') {
+          const units = getAllUnitsOfProduct(p);
+          for (let j = 0; j < units.length; j++) {
+            const u = units[j];
+            if (u.sku) {
+              const key = u.sku.toLowerCase();
+              if (!_barcodeIndexMap.has(key)) {
+                _barcodeIndexMap.set(key, {
+                  product: p,
+                  unitLevel: u.level,
+                  unitInfo: u,
+                  matchedSku: u.sku,
+                  isExactBarcode: true
+                });
+              }
+            }
+          }
+        } else if (p.sku) {
+          const key = String(p.sku).trim().toLowerCase();
+          if (key && !_barcodeIndexMap.has(key)) {
+            _barcodeIndexMap.set(key, {
+              product: p,
+              unitLevel: 1,
+              unitInfo: { level: 1, name: p.unit || 'Pcs', sku: String(p.sku).trim(), qty: 1, priceRetail: parseFloat(p.priceRetail) || 0, priceWholesale: parseFloat(p.priceWholesale) || 0 },
+              matchedSku: String(p.sku).trim(),
+              isExactBarcode: true
+            });
+          }
+        }
+      }
+    }
+
+    async function getProductsCached(forceRefresh = false) {
+      if (!forceRefresh && Array.isArray(_productsCacheList)) {
+        return _productsCacheList;
+      }
+      if (!forceRefresh && _productsCachePromise) {
+        return _productsCachePromise;
+      }
+      _productsCachePromise = getAll('products').then((list) => {
+        _productsCacheList = Array.isArray(list) ? list : [];
+        _rebuildProductsCacheIndex(_productsCacheList);
+        _productsCachePromise = null;
+        return _productsCacheList;
+      }).catch((err) => {
+        _productsCachePromise = null;
+        throw err;
+      });
+      return _productsCachePromise;
+    }
+
+    async function findProductAndUnitByBarcodeFast(rawCode) {
+      const code = String(rawCode || '').trim().toLowerCase();
+      if (!code) return null;
+      const products = await getProductsCached();
+      const exactHit = _barcodeIndexMap.get(code);
+      if (exactHit) return exactHit;
+      return findProductAndUnitByBarcode(products, rawCode);
+    }
+
     function putItem(storeName, item, skipSyncBroadcast = false) {
       return new Promise((resolve, reject) => {
         const tx = db.transaction(storeName, 'readwrite');
         const store = tx.objectStore(storeName);
 
         const finishPut = (resKey, finalObj) => {
+          if (storeName === 'products') invalidateProductsCache();
           if (!skipSyncBroadcast && typeof notifyDatabaseMutation === 'function') {
             try {
               const broadcastObj = storeName === 'settings' ? finalObj : { ...finalObj, id: finalObj.id || resKey };
@@ -5611,6 +5717,7 @@
             deletedItemRef = getReq.result || null;
             const req = store.delete(key);
             req.onsuccess = () => {
+              if (storeName === 'products') invalidateProductsCache();
               if (!skipSyncBroadcast && storeName === 'products' && deletedItemRef && deletedItemRef.sku && typeof recordDeletedProductSkuTombstone === 'function') {
                 try { recordDeletedProductSkuTombstone(deletedItemRef.sku); } catch (e) {}
               }
@@ -5627,7 +5734,10 @@
           };
           getReq.onerror = () => {
             const req = store.delete(key);
-            req.onsuccess = () => resolve(true);
+            req.onsuccess = () => {
+              if (storeName === 'products') invalidateProductsCache();
+              resolve(true);
+            };
           };
         } catch (err) {
           const req = store.delete(key);
@@ -5967,32 +6077,8 @@
       loadPrayerTimes();
       await updateExpiryNotifications();
 
-      const posSearchInput = document.getElementById('posSearch');
-      posSearchInput.addEventListener('input', () => {
-        currentPosPage = 1;
-        setPosSearchFocusState(true);
-        renderPosProducts();
-      });
-      posSearchInput.addEventListener('keydown', async (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          const query = posSearchInput.value.toLowerCase().trim();
-          if (!query) return;
-
-          const products = await getAll('products');
-          let matchedProduct = products.find(p => p.sku.toLowerCase() === query);
-          if (!matchedProduct) {
-             const filtered = products.filter(p => p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query));
-             if (filtered.length === 1) matchedProduct = filtered[0];
-          }
-
-          if (matchedProduct) {
-            addToCart(matchedProduct);
-            posSearchInput.value = '';
-            renderPosProducts();
-          }
-        }
-      });
+      // Pre-warm cache produk & indeks barcode O(1) agar scan pertama langsung instan tanpa lag
+      try { await getProductsCached(true); } catch (e) {}
 
       await loadSavedCartState();
       await loadHeldCartsState();
@@ -7366,8 +7452,9 @@
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
       const tgt = document.getElementById(`tab-${tabId}`);
       if(tgt) tgt.classList.remove('hidden');
-      if (tabId === 'pos' && typeof updatePosHeaderMetadata === 'function') {
-        updatePosHeaderMetadata();
+      if (tabId === 'pos') {
+        if (typeof updatePosHeaderMetadata === 'function') updatePosHeaderMetadata();
+        if (typeof getProductsCached === 'function') getProductsCached().catch(() => {});
       }
       if (tabId === 'cashclose' && typeof initCashClosingView === 'function') {
         initCashClosingView();
@@ -7604,15 +7691,36 @@
       }
     }
 
-    async function renderPosProducts() {
-      const products = await getAll('products');
-      const query = document.getElementById('posSearch').value.toLowerCase().trim();
-      const cat = document.getElementById('posCategoryFilter').value;
+    let _posCatalogDirty = false;
+    let _posCatalogRefreshTimer = null;
+    function schedulePosCatalogRefresh(delayMs = 160) {
+      clearTimeout(_posCatalogRefreshTimer);
+      const catBody = document.getElementById('posCatalogBody');
+      if (catBody && catBody.classList.contains('hidden')) {
+        _posCatalogDirty = true;
+        return;
+      }
+      _posCatalogRefreshTimer = setTimeout(() => {
+        renderPosProducts();
+      }, delayMs);
+    }
 
-      const filtered = products.filter(p => {
-        const matchQ = productMatchesBarcodeOrQuery(p, query);
-        const matchC = cat === '' || p.category === cat;
-        return matchQ && matchC;
+    async function renderPosProducts(forceRender = false) {
+      const catBody = document.getElementById('posCatalogBody');
+      if (!forceRender && catBody && catBody.classList.contains('hidden')) {
+        _posCatalogDirty = true;
+        return;
+      }
+      _posCatalogDirty = false;
+      const products = await getProductsCached();
+      const posSearchEl = document.getElementById('posSearch');
+      const posCatEl = document.getElementById('posCategoryFilter');
+      const query = (posSearchEl ? posSearchEl.value : '').toLowerCase().trim();
+      const cat = posCatEl ? posCatEl.value : '';
+
+      const filtered = (!query && !cat) ? products : products.filter(p => {
+        if (cat !== '' && p.category !== cat) return false;
+        return !query || productMatchesBarcodeOrQuery(p, query);
       });
 
       const container = document.getElementById('posProductGrid');
@@ -7649,6 +7757,7 @@
       const endIndex = startIndex + perPage;
       const paginatedPosProducts = filtered.slice(startIndex, endIndex);
 
+      const frag = document.createDocumentFragment();
       paginatedPosProducts.forEach(p => {
         const priceToShow = cartPriceMode === 'grosir' ? p.priceWholesale : p.priceRetail;
         const expCheck = getProductExpiryStatus(p.expiredDate);
@@ -7765,8 +7874,9 @@
             `}
           </div>
         `;
-        container.appendChild(card);
+        frag.appendChild(card);
       });
+      container.appendChild(frag);
 
       const currentEnd = Math.min(endIndex, filtered.length);
       if (pageInfoEl) {
@@ -7900,8 +8010,8 @@
     }
 
     async function addToCartByIdAndUnit(productId, unitLevel = 1) {
-      const products = await getAll('products');
-      const prod = products.find(p => p.id === productId);
+      await getProductsCached();
+      const prod = _productByIdMap.get(productId) || (_productsCacheList || []).find(p => p.id === productId);
       if (prod) addToCart(prod, unitLevel);
     }
 
@@ -7966,13 +8076,12 @@
       if (!prod) return false;
       const q = String(rawQuery || '').toLowerCase().trim();
       if (!q) return true;
-      const rackStr = getProductRackDisplay(prod).toLowerCase();
-      if ((prod.name || '').toLowerCase().includes(q)) return true;
-      if ((prod.sku || '').toLowerCase().includes(q)) return true;
-      if (rackStr.includes(q)) return true;
-      if (prod.expiredDate && String(prod.expiredDate).toLowerCase().includes(q)) return true;
-      const units = getAllUnitsOfProduct(prod);
-      return units.some(u => (u.sku && u.sku.toLowerCase().includes(q)) || (u.name && u.name.toLowerCase().includes(q)));
+      let indexed = _productSearchIndex.get(prod);
+      if (indexed === undefined) {
+        indexed = _buildProductSearchString(prod);
+        _productSearchIndex.set(prod, indexed);
+      }
+      return indexed.includes(q);
     }
 
     function findProductAndUnitByBarcode(products, rawCode) {
@@ -8473,6 +8582,18 @@
       return Math.round(raw * (1 - discPct / 100));
     }
 
+    let _saveCartStateTimer = null;
+    function scheduleSaveCartState(delayMs = 120) {
+      clearTimeout(_saveCartStateTimer);
+      _saveCartStateTimer = setTimeout(() => { saveCartState(); }, delayMs);
+    }
+
+    let _broadcastDisplayTimer = null;
+    function scheduleBroadcastCustomerDisplay(delayMs = 140) {
+      clearTimeout(_broadcastDisplayTimer);
+      _broadcastDisplayTimer = setTimeout(() => { broadcastCustomerDisplayState(); }, delayMs);
+    }
+
     function renderCartSummary() {
       const container = document.getElementById('cartItemList');
       const badgeEl = document.getElementById('cartBadgeCount');
@@ -8493,10 +8614,10 @@
           : 'text-[10px] font-mono font-black text-amber-700';
       }
 
-      saveCartState();
-      broadcastCustomerDisplayState();
-      if (typeof renderPosProducts === 'function') {
-        renderPosProducts();
+      scheduleSaveCartState();
+      scheduleBroadcastCustomerDisplay();
+      if (typeof schedulePosCatalogRefresh === 'function') {
+        schedulePosCatalogRefresh(200);
       }
 
       if (!container) return;
@@ -8519,6 +8640,7 @@
       }
 
       let subtotal = 0;
+      const cartFrag = document.createDocumentFragment();
       currentCart.forEach((item, idx) => {
         const itemSubtotal = getCartItemSubtotal(item);
         subtotal += itemSubtotal;
@@ -8566,8 +8688,10 @@
             </button>
           </div>
         `;
-        container.appendChild(row);
+        cartFrag.appendChild(row);
       });
+      container.appendChild(cartFrag);
+      container.scrollTop = container.scrollHeight;
 
       const taxInfo = getCartTaxDetails();
       document.getElementById('cartSubtotal').innerText = `Rp ${taxInfo.subtotal.toLocaleString('id-ID')}`;
@@ -10345,6 +10469,7 @@
           const store = tx.objectStore('products');
           const req = store.clear();
           req.onsuccess = () => {
+            invalidateProductsCache();
             if (typeof notifyDatabaseMutation === 'function') {
               notifyDatabaseMutation('clear', 'products', { clearedAt: new Date().toISOString() });
             }
@@ -11452,19 +11577,21 @@ async function handleDecodedBarcode(code) {
   }
 
   // Default: POS Cashier Mode (Mendukung Scan Barcode Multi-Satuan: Pcs, Renceng, Dus, dll.)
-  const products = await getAll('products');
-  const matched = findProductAndUnitByBarcode(products, cleanCode);
+  const matched = await findProductAndUnitByBarcodeFast(cleanCode);
   const autoAdd = document.getElementById('scannerAutoAddCart')?.checked !== false;
 
   if (matched && matched.isExactBarcode && autoAdd) {
     addToCart(matched.product, matched.unitLevel);
-    document.getElementById('posSearch').value = '';
-    await renderPosProducts();
+    const searchEl = document.getElementById('posSearch');
+    if (searchEl) searchEl.value = '';
+    showPosScanFeedback('success', `${matched.product.name} (+1 ${matched.unitInfo?.name || matched.product.unit || 'Pcs'})`);
+    schedulePosCatalogRefresh(180);
   } else {
-    document.getElementById('posSearch').value = cleanCode;
-    await renderPosProducts();
+    const searchEl = document.getElementById('posSearch');
+    if (searchEl) searchEl.value = cleanCode;
+    schedulePosCatalogRefresh(80);
     if (!matched) {
-      showCustomAlert('Barcode Terbaca', `Kode "${cleanCode}" belum terdaftar pada satuan produk manapun.`, 'warning');
+      showPosScanFeedback('error', `Barcode "${cleanCode}" belum terdaftar pada satuan produk manapun.`);
     }
   }
 }
@@ -13648,6 +13775,7 @@ async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', 
       tx.onerror = () => resolve(0);
     });
   } finally {
+    invalidateProductsCache();
     isApplyingExternalSync = false;
   }
 }
@@ -13667,6 +13795,7 @@ async function applyDatabaseSnapshotToIndexedDB(snapshot, customMergeMode = null
         tx.oncomplete = () => res(true);
         tx.onerror = () => res(false);
       });
+      invalidateProductsCache();
       if (snapshot.productsClearedAt) {
         googleSyncState.productsClearedAt = snapshot.productsClearedAt;
         saveGoogleSyncState();
@@ -13806,6 +13935,7 @@ function initGoogleAccountCloudRelay() {
               tx.oncomplete = () => res(true);
               tx.onerror = () => res(false);
             });
+            invalidateProductsCache();
           }
           googleSyncState.lastSync = new Date().toISOString();
           saveGoogleSyncState();
@@ -13915,6 +14045,7 @@ async function checkAndApplyReassembledGoogleCloudChunks(syncId) {
       tx.oncomplete = () => res(true);
       tx.onerror = () => res(false);
     });
+    invalidateProductsCache();
     googleSyncState.productsClearedAt = entry.meta.productsClearedAt || new Date().toISOString();
     googleSyncState.lastSync = new Date().toISOString();
     saveGoogleSyncState();
@@ -14097,6 +14228,7 @@ async function confirmClearProductsWithAccountAuth(e) {
       tx.oncomplete = () => res(true);
       tx.onerror = () => res(false);
     });
+    invalidateProductsCache();
   } finally {
     isApplyingExternalSync = false;
   }
@@ -16166,10 +16298,56 @@ async function saveOcrPurchasesToDatabase() {
 }
 
 /* ================= FITUR 4: PINTASAN STANDAR (HIGH-SPEED KEYBOARD SHORTCUTS) ================= */
+let _globalHidScanBuffer = '';
+let _globalHidScanLastTs = 0;
+
+function _isPosTabReadyForGlobalScan() {
+  const posTab = document.getElementById('tab-pos');
+  if (!posTab || posTab.classList.contains('hidden')) return false;
+  const blockingModals = ['loginOverlay', 'checkoutModal', 'customAlertModal', 'confirmModal', 'barcodeScannerModal', 'holdCartModal', 'recallCartModal', 'editCartPriceModal'];
+  for (let i = 0; i < blockingModals.length; i++) {
+    const m = document.getElementById(blockingModals[i]);
+    if (m && !m.classList.contains('hidden')) return false;
+  }
+  return true;
+}
+
 window.addEventListener('keydown', (e) => {
   const activeEl = document.activeElement;
   const tag = (activeEl ? activeEl.tagName : '').toLowerCase();
-  const isInput = tag === 'input' || tag === 'textarea' || tag === 'select';
+  const isInput = tag === 'input' || tag === 'textarea' || tag === 'select' || (activeEl && activeEl.isContentEditable);
+
+  // Tangkap otomatis input cepat dari alat Scanner Barcode USB/Bluetooth meskipun kursor sedang tidak fokus di kotak pencarian
+  if (!isInput && !e.ctrlKey && !e.altKey && !e.metaKey && _isPosTabReadyForGlobalScan()) {
+    const nowTs = performance.now();
+    if (e.key === 'Enter' && _globalHidScanBuffer.length >= 4 && (nowTs - _globalHidScanLastTs) < 120) {
+      e.preventDefault();
+      e.stopPropagation();
+      const capturedCode = _globalHidScanBuffer.trim();
+      _globalHidScanBuffer = '';
+      _globalHidScanLastTs = 0;
+      handlePosQuickAdd(capturedCode);
+      return;
+    }
+    if (e.key && e.key.length === 1) {
+      if ((nowTs - _globalHidScanLastTs) > 85) {
+        _globalHidScanBuffer = '';
+      }
+      // Jika sedang dalam burst scanner (< 60ms) dan karakter adalah +/-, masukkan ke buffer barcode bukan ubah qty
+      if (_globalHidScanBuffer.length >= 1 && (nowTs - _globalHidScanLastTs) < 60 && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_' || e.key === ' ')) {
+        e.preventDefault();
+        _globalHidScanBuffer += e.key;
+        _globalHidScanLastTs = nowTs;
+        return;
+      }
+      if (e.key !== ' ' && e.key !== '+' && e.key !== '-' && e.key !== '=' && e.key !== '_') {
+        _globalHidScanBuffer += e.key;
+        _globalHidScanLastTs = nowTs;
+      }
+    } else if (e.key !== 'Shift' && e.key !== 'CapsLock') {
+      _globalHidScanBuffer = '';
+    }
+  }
 
   // F1 : Cari Produk / Katalog
   if (e.key === 'F1') {
@@ -16338,6 +16516,64 @@ function updateCartItemDiscPct(index, rawVal) {
   renderCartSummary();
 }
 
+let _posScanFeedbackTimer = null;
+function showPosScanFeedback(type, message) {
+  const el = document.getElementById('posScanFeedback');
+  if (!el) return;
+  clearTimeout(_posScanFeedbackTimer);
+  if (type === 'success') {
+    el.className = 'mt-1.5 px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800';
+    el.innerHTML = `<span class="flex items-center gap-1.5 truncate"><i class="fa-solid fa-circle-check text-emerald-600"></i><span class="truncate">${message}</span></span><span class="text-[10px] font-mono text-emerald-600 flex-shrink-0">SIAP SCAN</span>`;
+  } else {
+    el.className = 'mt-1.5 px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center justify-between gap-2 bg-amber-50 border border-amber-300 text-amber-900';
+    el.innerHTML = `<span class="flex items-center gap-1.5 truncate"><i class="fa-solid fa-triangle-exclamation text-amber-600"></i><span class="truncate">${message}</span></span><button type="button" onclick="this.parentElement.classList.add('hidden')" class="text-amber-700 hover:text-amber-950 text-[10px] font-black px-1">✕</button>`;
+  }
+  _posScanFeedbackTimer = setTimeout(() => {
+    el.classList.add('hidden');
+  }, type === 'success' ? 2200 : 3500);
+}
+
+let _posSearchInputLastTs = 0;
+let _posSearchDebounceTimer = null;
+let _posSuggestDebounceTimer = null;
+
+function handlePosSearchInput(event) {
+  const now = performance.now();
+  const delta = now - _posSearchInputLastTs;
+  _posSearchInputLastTs = now;
+
+  currentPosPage = 1;
+  setPosSearchFocusState(true);
+
+  clearTimeout(_posSearchDebounceTimer);
+  clearTimeout(_posSuggestDebounceTimer);
+
+  const inp = document.getElementById('posSearch');
+  const val = (inp ? inp.value : '').trim();
+  if (!val) {
+    const box = document.getElementById('posQuickSuggestBox');
+    if (box) {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+    }
+    schedulePosCatalogRefresh(80);
+    return;
+  }
+
+  // Deteksi burst cepat dari alat Barcode Scanner (< 55ms antar karakter): tunda render berat agar 0 lag saat scan!
+  const isRapidScannerBurst = delta > 0 && delta < 55;
+  const suggestDelay = isRapidScannerBurst ? 260 : 100;
+  const catalogDelay = isRapidScannerBurst ? 320 : 180;
+
+  _posSuggestDebounceTimer = setTimeout(() => {
+    renderPosQuickSuggest();
+  }, suggestDelay);
+
+  _posSearchDebounceTimer = setTimeout(() => {
+    schedulePosCatalogRefresh(0);
+  }, catalogDelay);
+}
+
 async function renderPosQuickSuggest() {
   const box = document.getElementById('posQuickSuggestBox');
   const inp = document.getElementById('posSearch');
@@ -16348,8 +16584,14 @@ async function renderPosQuickSuggest() {
     box.innerHTML = '';
     return;
   }
-  const products = await getAll('products');
-  const matches = products.filter(p => productMatchesBarcodeOrQuery(p, q)).slice(0, 8);
+  const products = await getProductsCached();
+  const matches = [];
+  for (let i = 0; i < products.length; i++) {
+    if (productMatchesBarcodeOrQuery(products[i], q)) {
+      matches.push(products[i]);
+      if (matches.length >= 8) break;
+    }
+  }
 
   if (matches.length === 0) {
     box.classList.add('hidden');
@@ -16394,8 +16636,8 @@ async function renderPosQuickSuggest() {
 }
 
 async function selectPosQuickSuggestProduct(productId, unitLevel = 1) {
-  const products = await getAll('products');
-  const prod = products.find(p => p.id === productId);
+  await getProductsCached();
+  const prod = _productByIdMap.get(productId) || (_productsCacheList || []).find(p => p.id === productId);
   const box = document.getElementById('posQuickSuggestBox');
   if (box) box.classList.add('hidden');
   if (!prod) return;
@@ -16406,9 +16648,10 @@ async function selectPosQuickSuggestProduct(productId, unitLevel = 1) {
   if (searchInp) {
     searchInp.value = '';
     setPosSearchFocusState(false);
-    renderPosProducts();
+    searchInp.focus();
   }
   if (qtyInp) qtyInp.value = 1;
+  schedulePosCatalogRefresh(160);
 }
 
 function addProductWithCustomQtyToCart(product, qtyToAdd = 1, unitLevel = 1) {
@@ -16451,36 +16694,45 @@ function addProductWithCustomQtyToCart(product, qtyToAdd = 1, unitLevel = 1) {
   renderCartSummary();
 }
 
-async function handlePosQuickAdd() {
+async function handlePosQuickAdd(overrideCode = null) {
+  clearTimeout(_posSearchDebounceTimer);
+  clearTimeout(_posSuggestDebounceTimer);
+
   const searchInp = document.getElementById('posSearch');
   const qtyInp = document.getElementById('posQuickQtyInput');
   const box = document.getElementById('posQuickSuggestBox');
   if (box) box.classList.add('hidden');
 
-  const query = (searchInp?.value || '').trim();
+  const query = String(overrideCode !== null ? overrideCode : (searchInp?.value || '')).trim();
   const qty = Math.max(0.01, parseFloat(qtyInp?.value) || 1);
   if (!query) {
     searchInp?.focus();
     return;
   }
 
-  const products = await getAll('products');
-  const matched = findProductAndUnitByBarcode(products, query);
+  const matched = await findProductAndUnitByBarcodeFast(query);
 
   if (!matched) {
-    showCustomAlert('Produk Tidak Ditemukan', `Barang dengan Barcode / SKU / Nama "${query}" tidak ditemukan di database.`, 'warning');
+    showPosScanFeedback('error', `Barcode / SKU "${query}" tidak ditemukan di database.`);
+    if (searchInp) {
+      if (overrideCode !== null) searchInp.value = query;
+      searchInp.focus();
+      searchInp.select();
+    }
     return;
   }
 
   addProductWithCustomQtyToCart(matched.product, qty, matched.unitLevel);
   if (typeof playScannerBeep === 'function') playScannerBeep();
+  const unitLabel = matched.unitInfo?.name || matched.product.unit || 'Pcs';
+  showPosScanFeedback('success', `Ditambahkan: ${matched.product.name} (+${qty} ${unitLabel})`);
   if (searchInp) {
     searchInp.value = '';
-    setPosSearchFocusState(false);
+    setPosSearchFocusState(true);
     searchInp.focus();
   }
   if (qtyInp) qtyInp.value = 1;
-  await renderPosProducts();
+  schedulePosCatalogRefresh(220);
 }
 
 function handlePosBarcodeInputKeydown(event) {
@@ -16514,6 +16766,9 @@ function togglePosCatalogCollapse() {
   const isHidden = body.classList.toggle('hidden');
   if (icon) icon.className = isHidden ? 'fa-solid fa-chevron-down text-[10px]' : 'fa-solid fa-chevron-up text-[10px]';
   if (txt) txt.innerText = isHidden ? 'Tampilkan Katalog' : 'Sembunyikan Katalog';
+  if (!isHidden && _posCatalogDirty) {
+    renderPosProducts(true);
+  }
 }
 
 function togglePosDigitalScaleBar() {
