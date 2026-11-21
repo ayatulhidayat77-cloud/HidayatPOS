@@ -1790,9 +1790,9 @@
               <i class="fa-solid fa-file-export"></i>
               <span>Export .xlsx</span>
             </button>
-            <button type="button" onclick="openDeleteByFilterModal()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-2 rounded-xl font-bold flex items-center space-x-1.5 shadow-sm transition" title="Hapus massal produk berdasarkan kategori, no. rak, kondisi stok/expired, atau hasil sortir aktif">
+            <button type="button" id="btnToolbarDeleteByFilter" onclick="openDeleteByFilterModal()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-2 rounded-xl font-bold flex items-center space-x-1.5 shadow-sm transition" title="Hapus massal produk berdasarkan kategori, no. rak, kondisi stok/expired, atau hasil sortir aktif">
               <i class="fa-solid fa-trash"></i>
-              <span>Hapus Kategori/Sortir</span>
+              <span id="btnToolbarDeleteByFilterLabel">Hapus Kategori/Sortir</span>
             </button>
             <button type="button" onclick="deleteAllProducts()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-3 py-2 rounded-xl font-bold flex items-center space-x-1.5 shadow-sm transition">
               <i class="fa-solid fa-trash-can"></i>
@@ -1916,23 +1916,19 @@
         <div id="prodSubViewCatalog" class="flex-1 flex flex-col">
 
         <!-- Unified Search, Category Filter & Display Mode Bar (Sama dengan Monitor Kedaluwarsa) -->
-        <div class="flex flex-col lg:flex-row gap-2 mb-3 items-stretch lg:items-center justify-between bg-slate-50/80 p-2.5 rounded-2xl border border-slate-200/90">
-          <div class="flex-1 flex flex-col sm:flex-row gap-2">
-            <div class="flex-1 flex gap-1.5">
-              <input type="text" id="productSearch" oninput="currentProductPage = 1; renderProductTable()" placeholder="Cari nama produk, barcode/SKU, atau No. Rak..." class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <div class="flex flex-col lg:flex-row lg:flex-wrap gap-2 mb-3 items-stretch lg:items-center justify-between bg-slate-50/80 p-2.5 rounded-2xl border border-slate-200/90">
+          <div class="flex-1 min-w-0 flex flex-col sm:flex-row sm:flex-wrap gap-2">
+            <div class="flex-1 min-w-0 flex gap-1.5">
+              <input type="text" id="productSearch" oninput="currentProductPage = 1; renderProductTable()" placeholder="Cari nama produk, barcode/SKU, atau No. Rak..." class="flex-1 min-w-0 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
               <button type="button" onclick="openBarcodeScanner('productSearch')" title="Scan Barcode untuk Cari Produk" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 flex-shrink-0 shadow-xs">
                 <i class="fa-solid fa-barcode"></i> <span>Scan</span>
               </button>
             </div>
-            <select id="productCategoryFilter" onchange="currentProductPage = 1; renderProductTable()" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700"><option value="">Semua Kategori (Sortir)</option><option value="Sembako">Sembako</option><option value="Makanan">Makanan</option><option value="Minuman">Minuman</option><option value="Kebutuhan Rumah">Kebutuhan Rumah</option><option value="Snack">Snack</option><option value="Obat - Obatan">Obat - Obatan</option><option value="Permen &amp; Minuman Serbuk">Permen &amp; Minuman Serbuk</option><option value="Rokok">Rokok</option><option value="Makanan Instan">Makanan Instan</option><option value="Sosis &amp; Es Krim">Sosis &amp; Es Krim</option><option value="A&amp;B Kebersihan">A&amp;B Kebersihan</option><option value="Bahan Kue">Bahan Kue</option><option value="Lainnya">Lainnya</option><option value="A&amp;B Plastik">A&amp;B Plastik</option><option value="A&amp;B Alat ">A&amp;B Alat </option></select>
-            <select id="productRackFilter" onchange="currentProductPage = 1; renderProductTable()" class="bg-amber-50/90 border border-amber-200 rounded-xl px-3 py-2 text-xs font-extrabold text-amber-900"><option value="">Semua No. Rak</option><option value="Rak A-01">Rak A-01</option><option value="Rak A-02">Rak A-02</option><option value="Rak B-01">Rak B-01</option><option value="Rak B-02">Rak B-02</option><option value="Rak C-01">Rak C-01</option><option value="Etalase Depan">Etalase Depan</option><option value="Kulkas / Chiller">Kulkas / Chiller</option><option value="Gudang Belakang">Gudang Belakang</option><option value="__EMPTY__">Belum Ada No. Rak</option></select>
-            <button type="button" id="btnQuickDeleteFilteredProducts" onclick="openDeleteByFilterModal('active_filter')" title="Hapus semua produk sesuai kategori atau hasil sortir yang aktif" class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 flex-shrink-0 shadow-sm transition">
-              <i class="fa-solid fa-trash-can"></i>
-              <span id="btnQuickDeleteFilteredLabel">Hapus Sortir (0)</span>
-            </button>
+            <select id="productCategoryFilter" onchange="currentProductPage = 1; renderProductTable()" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 max-w-full sm:max-w-[190px] truncate"><option value="">Semua Kategori (Sortir)</option><option value="Sembako">Sembako</option><option value="Makanan">Makanan</option><option value="Minuman">Minuman</option><option value="Kebutuhan Rumah">Kebutuhan Rumah</option><option value="Snack">Snack</option><option value="Obat - Obatan">Obat - Obatan</option><option value="Permen &amp; Minuman Serbuk">Permen &amp; Minuman Serbuk</option><option value="Rokok">Rokok</option><option value="Makanan Instan">Makanan Instan</option><option value="Sosis &amp; Es Krim">Sosis &amp; Es Krim</option><option value="A&amp;B Kebersihan">A&amp;B Kebersihan</option><option value="Bahan Kue">Bahan Kue</option><option value="Lainnya">Lainnya</option><option value="A&amp;B Plastik">A&amp;B Plastik</option><option value="A&amp;B Alat ">A&amp;B Alat </option></select>
+            <select id="productRackFilter" onchange="currentProductPage = 1; renderProductTable()" class="bg-amber-50/90 border border-amber-200 rounded-xl px-3 py-2 text-xs font-extrabold text-amber-900 max-w-full sm:max-w-[160px] truncate"><option value="">Semua No. Rak</option><option value="Rak A-01">Rak A-01</option><option value="Rak A-02">Rak A-02</option><option value="Rak B-01">Rak B-01</option><option value="Rak B-02">Rak B-02</option><option value="Rak C-01">Rak C-01</option><option value="Etalase Depan">Etalase Depan</option><option value="Kulkas / Chiller">Kulkas / Chiller</option><option value="Gudang Belakang">Gudang Belakang</option><option value="__EMPTY__">Belum Ada No. Rak</option></select>
           </div>
-          <div class="flex items-center justify-between sm:justify-end gap-2">
-            <span class="text-[11px] font-bold text-slate-500"><i class="fa-solid fa-layer-group text-indigo-600 mr-1"></i>Tampilan Daftar Barang:</span>
+          <div class="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0">
+            <span class="text-[11px] font-bold text-slate-500 whitespace-nowrap"><i class="fa-solid fa-layer-group text-indigo-600 mr-1"></i>Tampilan Daftar Barang:</span>
             <div class="inline-flex bg-slate-200/80 p-1 rounded-xl border border-slate-300/70">
               <button type="button" id="btnViewModeTableProd" onclick="setUnifiedCatalogDisplayMode('table')" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-white text-indigo-700 shadow-xs flex items-center gap-1 transition">
                 <i class="fa-solid fa-table-list"></i> <span>Tabel Detail</span>
@@ -1941,6 +1937,23 @@
                 <i class="fa-solid fa-grip"></i> <span>Kartu Visual</span>
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- Bar Kontekstual Hapus Hasil Sortir (Muncul rapi di bawah bar filter hanya saat sortir/kategori aktif) -->
+        <div id="activeFilterBulkDeleteBar" class="hidden mb-3 px-3 py-2 bg-rose-50 border border-rose-200 rounded-2xl flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2 min-w-0">
+            <i class="fa-solid fa-trash-can text-rose-600 flex-shrink-0"></i>
+            <span id="activeFilterBulkDeleteInfo" class="font-bold text-rose-800 truncate">Sortir aktif: 0 produk cocok</span>
+          </div>
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <button type="button" id="btnQuickDeleteFilteredProducts" onclick="openDeleteByFilterModal('active_filter')" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 shadow-sm transition">
+              <i class="fa-solid fa-trash-can"></i>
+              <span id="btnQuickDeleteFilteredLabel">Hapus Hasil Sortir (0)</span>
+            </button>
+            <button type="button" onclick="resetProductCatalogFilters()" class="px-2.5 py-1.5 bg-white hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-[11px] font-bold transition">
+              Reset Filter
+            </button>
           </div>
         </div>
 
@@ -11584,30 +11597,51 @@
     /* ================= HAPUS MASSAL PRODUK BERDASARKAN KATEGORI / SORTIR ================= */
     let bulkDeleteFilterMode = 'active_filter';
 
+    function resetProductCatalogFilters() {
+      const searchEl = document.getElementById('productSearch');
+      const catEl = document.getElementById('productCategoryFilter');
+      const rackEl = document.getElementById('productRackFilter');
+      if (searchEl) searchEl.value = '';
+      if (catEl) catEl.value = '';
+      if (rackEl) rackEl.value = '';
+      currentProductPage = 1;
+      renderProductTable();
+    }
+
     function updateQuickDeleteFilteredButton(filteredList, q, selectedCategory, selectedRack) {
+      const bar = document.getElementById('activeFilterBulkDeleteBar');
+      const infoEl = document.getElementById('activeFilterBulkDeleteInfo');
       const btn = document.getElementById('btnQuickDeleteFilteredProducts');
       const lbl = document.getElementById('btnQuickDeleteFilteredLabel');
-      if (!btn || !lbl) return;
+      const tbLbl = document.getElementById('btnToolbarDeleteByFilterLabel');
 
       const count = Array.isArray(filteredList) ? filteredList.length : 0;
       const hasActiveFilter = Boolean((q && q.trim() !== '') || selectedCategory !== '' || selectedRack !== '');
 
+      if (tbLbl) {
+        tbLbl.innerText = hasActiveFilter ? `Hapus Sortir (${count})` : 'Hapus Kategori/Sortir';
+      }
+
+      if (!bar || !btn || !lbl) return;
+
       if (hasActiveFilter) {
-        if (selectedCategory && !q && !selectedRack) {
-          const shortCat = selectedCategory.length > 16 ? selectedCategory.slice(0, 15) + '…' : selectedCategory;
-          lbl.innerText = `Hapus "${shortCat}" (${count})`;
-        } else if (selectedRack && !q && !selectedCategory) {
-          const rackLabel = selectedRack === '__EMPTY__' ? 'Tanpa Rak' : selectedRack;
-          lbl.innerText = `Hapus ${rackLabel} (${count})`;
-        } else {
-          lbl.innerText = `Hapus Hasil Sortir (${count})`;
+        bar.classList.remove('hidden');
+        bar.classList.add('flex');
+        const parts = [];
+        if (selectedCategory) parts.push(`Kategori "${selectedCategory}"`);
+        if (selectedRack) parts.push(`Rak "${selectedRack === '__EMPTY__' ? 'Tanpa Rak' : selectedRack}"`);
+        if (q && q.trim() !== '') parts.push(`Pencarian "${q.trim()}"`);
+        if (infoEl) {
+          infoEl.innerText = `Sortir aktif: ${parts.join(' • ')} (${count} produk cocok)`;
         }
+        lbl.innerText = `Hapus Semua Hasil Sortir (${count})`;
+        btn.disabled = count === 0;
         btn.className = count > 0
-          ? 'px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white border border-rose-600 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 flex-shrink-0 shadow-sm transition'
-          : 'px-3 py-2 bg-rose-50 text-rose-500 border border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 flex-shrink-0 transition';
+          ? 'px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 shadow-sm transition'
+          : 'px-3 py-1.5 bg-rose-100 text-rose-500 rounded-xl text-[11px] font-bold flex items-center gap-1.5 opacity-50 cursor-not-allowed transition';
       } else {
-        lbl.innerText = `Hapus Kategori/Sortir`;
-        btn.className = 'px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 flex-shrink-0 shadow-sm transition';
+        bar.classList.add('hidden');
+        bar.classList.remove('flex');
       }
     }
 
