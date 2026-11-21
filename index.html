@@ -926,6 +926,27 @@
 
     <!-- CONTENT CONTAINER -->
     <main class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-5 flex flex-col min-h-0 overflow-y-auto">
+      <!-- Global Banner Notifikasi Sinkronisasi Akun Google (Terlihat di Semua Menu: Kasir, Dashboard, Produk & Pengaturan) -->
+      <div id="globalPendingGoogleCloudSyncBanner" class="hidden bg-gradient-to-r from-amber-50 via-yellow-50 to-blue-50 border-2 border-amber-300 rounded-2xl p-3 mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-sm no-print">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+            <i class="fa-solid fa-cloud-arrow-down text-sm"></i>
+          </div>
+          <div class="min-w-0">
+            <p class="text-xs font-extrabold text-amber-950">Pembaruan Data Barang &amp; Pengaturan dari Perangkat Lain Tersedia</p>
+            <p id="globalPendingGoogleCloudSyncDesc" class="text-[11px] text-amber-900 truncate">Klik Verifikasi PIN &amp; Terapkan untuk menyinkronkan ke perangkat ini.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 flex-shrink-0 w-full sm:w-auto justify-end">
+          <button type="button" onclick="applyPendingGoogleCloudSyncWithPin()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 shadow-xs transition">
+            <i class="fa-solid fa-key"></i>
+            <span>Verifikasi PIN &amp; Terapkan</span>
+          </button>
+          <button type="button" onclick="dismissPendingGoogleCloudSync()" class="px-2.5 py-1.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-[11px] font-bold transition">
+            Abaikan
+          </button>
+        </div>
+      </div>
 
       <!-- ================= 0. DASHBOARD VIEW ================= -->
       <section id="tab-dashboard" class="tab-content flex-1 hidden flex-col space-y-5">
@@ -12777,8 +12798,25 @@
         await putItem('settings', { key: 'taxMode', value: document.getElementById('setTaxMode')?.value || 'exclusive' });
       }
 
+      await putItem('settings', { key: 'settingsUpdatedAt', value: new Date().toISOString() }, true);
       await loadStoreSettings();
-      showCustomAlert('Berhasil', 'Pengaturan pajak, tata letak resi & toko berhasil disimpan!', 'warning');
+      if (typeof updateTopHeaderForActiveMenu === 'function' && typeof getCurrentActiveTabId === 'function') {
+        updateTopHeaderForActiveMenu(getCurrentActiveTabId());
+      }
+      if (typeof googleSyncState !== 'undefined' && googleSyncState.connected && googleSyncState.email) {
+        hasUnsyncedLocalGoogleChanges = true;
+        if (typeof updateProductTabGoogleSyncBarUI === 'function') updateProductTabGoogleSyncBarUI();
+        if (googleSyncState.autoSync && googleSyncState.requirePinForSync === false) {
+          if (typeof syncPushToGoogleAccount === 'function') {
+            syncPushToGoogleAccount(false, true);
+          }
+          showCustomAlert('Berhasil & Disinkronkan', 'Pengaturan pajak, tata letak resi & toko berhasil disimpan dan otomatis dikirim ke Akun Google lintas perangkat!', 'warning');
+        } else {
+          showCustomAlert('Berhasil Disimpan', 'Pengaturan toko berhasil disimpan di perangkat ini. Klik "Push Semua" di atas (dengan PIN) agar langsung tersinkronisasi ke perangkat lain.', 'warning');
+        }
+      } else {
+        showCustomAlert('Berhasil', 'Pengaturan pajak, tata letak resi & toko berhasil disimpan!', 'warning');
+      }
     }
 
     function handleLogoUpload(input) {
@@ -15087,6 +15125,7 @@ let googleSyncPinCurrentActionTitle = '';
 const LOCAL_PRODUCTS_LAST_SAVED_KEY = 'aladinpay_local_products_last_saved_at';
 const GCLOUD_LAST_SYNC_ID_KEY = 'aladinpay_gcloud_last_applied_sync_id';
 const GCLOUD_LAST_FULL_SYNC_ID_KEY = 'aladinpay_gcloud_last_applied_full_sync_id';
+const GCLOUD_LAST_SETTINGS_SYNC_ID_KEY = 'aladinpay_gcloud_last_applied_settings_sync_id';
 
 function getLocalProductsLastSavedAt() {
   try {
@@ -15121,15 +15160,36 @@ function setPersistedLastAppliedFullSyncId(syncId) {
   try { localStorage.setItem(GCLOUD_LAST_FULL_SYNC_ID_KEY, googleCloudLastAppliedFullSyncId); } catch (e) {}
 }
 
+function getPersistedLastAppliedSettingsSyncId() {
+  try { return localStorage.getItem(GCLOUD_LAST_SETTINGS_SYNC_ID_KEY) || ''; } catch (e) { return ''; }
+}
+
+function setPersistedLastAppliedSettingsSyncId(syncId) {
+  googleCloudLastAppliedSettingsSyncId = syncId || '';
+  try { localStorage.setItem(GCLOUD_LAST_SETTINGS_SYNC_ID_KEY, googleCloudLastAppliedSettingsSyncId); } catch (e) {}
+}
+
 // Dedicated Cross-Device Google Account Cloud Relay State
 let googleCloudMqttClient = null;
 let googleCloudBrokerIdx = 0;
 let googleCloudActiveTopicBase = '';
 let googleCloudDevicesMap = {}; // deviceId -> { deviceId, deviceName, email, lastSeen }
 let googleCloudIncomingChunks = {}; // syncId -> { totalChunks, parts: {}, meta: null }
+let googleCloudIncomingFullChunks = {}; // syncId -> { totalChunks, parts: {}, meta: null }
+let googleCloudIncomingSettingsChunks = {}; // syncId -> { totalChunks, parts: {}, meta: null }
 let googleCloudLastAppliedSyncId = getPersistedLastAppliedSyncId();
+let googleCloudLastAppliedFullSyncId = getPersistedLastAppliedFullSyncId();
+let googleCloudLastAppliedSettingsSyncId = getPersistedLastAppliedSettingsSyncId();
+let googleCloudLatestRemoteProducts = null; // { syncId, syncedAt, products, deletedProductSkus, replaceProducts, productsClearedAt, senderDeviceName }
+let googleCloudLatestRemoteSettings = null; // { syncId, syncedAt, settings, localSettings, senderDeviceName }
+let googleCloudLatestRemoteFullSnap = null; // { syncId, syncedAt, fullSnap, senderDeviceName }
+let googleCloudLastPublishedProdChunks = 0;
+let googleCloudLastPublishedSettingsChunks = 0;
+let googleCloudLastPublishedFullChunks = 0;
+let googleCloudPullWaiters = [];
+let googleCloudConnectFailoverTimer = null;
 let googleCloudPollTimer = null;
-const GOOGLE_CLOUD_CHUNK_SIZE = 35; // 35 compact products per retained cloud chunk (~6.5 KB per chunk)
+const GOOGLE_CLOUD_MAX_CHUNK_CHARS = 14000; // Aman untuk semua broker MQTT publik (EMQX, HiveMQ, Mosquitto)
 
 function toggleGoogleRequirePinForSync(enabled) {
   googleSyncState.requirePinForSync = !!enabled;
@@ -15223,12 +15283,15 @@ async function submitGoogleSyncPinVerification(e) {
 }
 
 function updatePendingGoogleCloudSyncUI() {
+  const globalBanner = document.getElementById('globalPendingGoogleCloudSyncBanner');
+  const globalDesc = document.getElementById('globalPendingGoogleCloudSyncDesc');
   const banner = document.getElementById('pendingGoogleCloudSyncBanner');
   const bannerDesc = document.getElementById('pendingGoogleCloudSyncDesc');
   const modalCard = document.getElementById('modalPendingGoogleCloudSyncCard');
   const modalDesc = document.getElementById('modalPendingGoogleCloudSyncDesc');
 
   if (!pendingGoogleCloudSync) {
+    if (globalBanner) globalBanner.classList.add('hidden');
     if (banner) banner.classList.add('hidden');
     if (modalCard) modalCard.classList.add('hidden');
     return;
@@ -15236,15 +15299,19 @@ function updatePendingGoogleCloudSyncUI() {
 
   const prodCount = Array.isArray(pendingGoogleCloudSync.products) ? pendingGoogleCloudSync.products.length : 0;
   const deltaCount = Array.isArray(pendingGoogleCloudSync.deltas) ? pendingGoogleCloudSync.deltas.length : 0;
+  const hasSettings = Boolean(pendingGoogleCloudSync.settingsPayload);
   const hasFull = Boolean(pendingGoogleCloudSync.fullSnap);
   const parts = [];
   if (prodCount > 0) parts.push(`${prodCount} Data Barang`);
+  if (hasSettings) parts.push('Pengaturan Toko');
   if (deltaCount > 0) parts.push(`${deltaCount} perubahan real-time`);
-  if (hasFull) parts.push('data menu & pengaturan');
+  if (hasFull) parts.push('data transaksi & menu lain');
   const summary = parts.length > 0 ? parts.join(', ') : 'pembaruan data baru';
   const sender = pendingGoogleCloudSync.senderDeviceName || 'Perangkat Lain';
-  const msg = `Diterima dari ${sender} (${summary}). Data barang di perangkat ini tetap aman sampai Anda verifikasi PIN.`;
+  const msg = `Diterima dari ${sender} (${summary}). Klik Verifikasi PIN & Terapkan untuk menyinkronkan ke perangkat ini.`;
 
+  if (globalBanner) globalBanner.classList.remove('hidden');
+  if (globalDesc) globalDesc.innerText = msg;
   if (banner) banner.classList.remove('hidden');
   if (bannerDesc) bannerDesc.innerText = msg;
   if (modalCard) modalCard.classList.remove('hidden');
@@ -15256,9 +15323,11 @@ function stagePendingGoogleCloudUpdate(update) {
     pendingGoogleCloudSync = {
       products: null,
       deletedSkus: [],
+      settingsPayload: null,
       fullSnap: null,
       deltas: [],
       syncIds: [],
+      settingsSyncIds: [],
       fullSyncIds: [],
       senderDeviceName: update.senderDeviceName || 'Perangkat Lain',
       receivedAt: new Date().toISOString()
@@ -15270,10 +15339,14 @@ function stagePendingGoogleCloudUpdate(update) {
     pendingGoogleCloudSync.products = update.products;
     pendingGoogleCloudSync.deletedSkus = Array.isArray(update.deletedSkus) ? update.deletedSkus : [];
   }
+  if (update.settingsPayload) pendingGoogleCloudSync.settingsPayload = update.settingsPayload;
   if (update.fullSnap) pendingGoogleCloudSync.fullSnap = update.fullSnap;
   if (update.delta) pendingGoogleCloudSync.deltas.push(update.delta);
   if (update.syncId && !pendingGoogleCloudSync.syncIds.includes(update.syncId)) {
     pendingGoogleCloudSync.syncIds.push(update.syncId);
+  }
+  if (update.settingsSyncId && !pendingGoogleCloudSync.settingsSyncIds.includes(update.settingsSyncId)) {
+    pendingGoogleCloudSync.settingsSyncIds.push(update.settingsSyncId);
   }
   if (update.fullSyncId && !pendingGoogleCloudSync.fullSyncIds.includes(update.fullSyncId)) {
     pendingGoogleCloudSync.fullSyncIds.push(update.fullSyncId);
@@ -15284,19 +15357,51 @@ function stagePendingGoogleCloudUpdate(update) {
 function dismissPendingGoogleCloudSync() {
   if (pendingGoogleCloudSync) {
     const lastProdId = pendingGoogleCloudSync.syncIds[pendingGoogleCloudSync.syncIds.length - 1];
+    const lastSetId = pendingGoogleCloudSync.settingsSyncIds[pendingGoogleCloudSync.settingsSyncIds.length - 1];
     const lastFullId = pendingGoogleCloudSync.fullSyncIds[pendingGoogleCloudSync.fullSyncIds.length - 1];
     if (lastProdId) setPersistedLastAppliedSyncId(lastProdId);
+    if (lastSetId) setPersistedLastAppliedSettingsSyncId(lastSetId);
     if (lastFullId) setPersistedLastAppliedFullSyncId(lastFullId);
   }
   pendingGoogleCloudSync = null;
   updatePendingGoogleCloudSyncUI();
 }
 
+async function applySettingsSnapshotToIndexedDB(settingsPayload) {
+  if (!settingsPayload || typeof settingsPayload !== 'object' || !db) return 0;
+  let appliedCount = 0;
+  if (settingsPayload.localSettings) {
+    applyLocalSettingsFromSync(settingsPayload.localSettings);
+  }
+  if (Array.isArray(settingsPayload.settings) && settingsPayload.settings.length > 0) {
+    appliedCount = await new Promise((resolve) => {
+      try {
+        const tx = db.transaction('settings', 'readwrite');
+        const store = tx.objectStore('settings');
+        let cnt = 0;
+        settingsPayload.settings.forEach(item => {
+          if (item && item.key && item.key !== 'deviceLicenseRecord') {
+            try {
+              store.put(item);
+              cnt++;
+            } catch (e) {}
+          }
+        });
+        tx.oncomplete = () => resolve(cnt);
+        tx.onerror = () => resolve(0);
+      } catch (err) {
+        resolve(0);
+      }
+    });
+  }
+  return appliedCount;
+}
+
 async function applyPendingGoogleCloudSyncWithPin() {
   if (!pendingGoogleCloudSync) return;
   const approved = await requestGoogleSyncPinVerification(
     'Terapkan Data Sinkronisasi Baru',
-    'Masukkan PIN Pengguna untuk menggabungkan data baru dari Akun Google. Data barang yang sudah disimpan di perangkat ini tidak akan kembali ke data awal.'
+    'Masukkan PIN Pengguna untuk menggabungkan Data Barang & Pengaturan terbaru dari Akun Google.'
   );
   if (!approved) return;
 
@@ -15307,22 +15412,27 @@ async function applyPendingGoogleCloudSyncWithPin() {
   isApplyingExternalSync = true;
   try {
     if (Array.isArray(staged.products) && staged.products.length > 0) {
-      await mergeProductsToIndexedDB(staged.products, googleSyncState.mergeMode || 'smart_sku', staged.deletedSkus || []);
+      await mergeProductsToIndexedDB(staged.products, googleSyncState.mergeMode || 'smart_sku', staged.deletedSkus || [], true);
+    }
+    if (staged.settingsPayload) {
+      await applySettingsSnapshotToIndexedDB(staged.settingsPayload);
     }
     if (staged.fullSnap) {
-      await applyDatabaseSnapshotToIndexedDB(staged.fullSnap, googleSyncState.mergeMode || 'smart_sku');
+      await applyDatabaseSnapshotToIndexedDB(staged.fullSnap, googleSyncState.mergeMode || 'smart_sku', true);
     }
     if (Array.isArray(staged.deltas) && staged.deltas.length > 0) {
       for (const d of staged.deltas) {
         if (d.opType === 'put' && d.storeName && d.payload) {
           if (d.storeName === 'products') {
-            await mergeProductsToIndexedDB([d.payload], 'smart_sku', []);
+            await mergeProductsToIndexedDB([d.payload], 'smart_sku', [], true);
+          } else if (d.storeName === 'settings' && d.payload.key === 'deviceLicenseRecord') {
+            continue;
           } else {
             await putItem(d.storeName, d.payload, true);
           }
         } else if (d.opType === 'delete' && d.storeName && d.payload) {
           if (d.storeName === 'products' && googleSyncState.protectLocalProducts !== false) {
-            continue; // Lindungi data barang perangkat agar tidak hilang otomatis
+            continue;
           }
           if (d.storeName === 'products' && d.payload.sku) {
             const allProds = await getAll('products');
@@ -15337,18 +15447,25 @@ async function applyPendingGoogleCloudSyncWithPin() {
       }
     }
     const lastProdId = staged.syncIds[staged.syncIds.length - 1];
+    const lastSetId = staged.settingsSyncIds[staged.settingsSyncIds.length - 1];
     const lastFullId = staged.fullSyncIds[staged.fullSyncIds.length - 1];
     if (lastProdId) setPersistedLastAppliedSyncId(lastProdId);
+    if (lastSetId) setPersistedLastAppliedSettingsSyncId(lastSetId);
     if (lastFullId) setPersistedLastAppliedFullSyncId(lastFullId);
 
     googleSyncState.lastSync = new Date().toISOString();
     saveGoogleSyncState();
     await loadStoreSettings();
+    if (typeof updateTopHeaderForActiveMenu === 'function' && typeof getCurrentActiveTabId === 'function') {
+      updateTopHeaderForActiveMenu(getCurrentActiveTabId());
+    }
+    await populatePosCategories();
+    await populateProductCategoryFilter();
     await renderAll();
     await renderGoogleSyncModalUI();
     showCustomAlert(
-      'Data Sinkronisasi Baru Diterapkan',
-      'Data baru dari Akun Google berhasil digabungkan setelah verifikasi PIN. Data barang lokal yang sudah tersimpan tetap terlindungi.',
+      'Data Barang & Pengaturan Diterapkan!',
+      'Data terbaru dari Akun Google berhasil digabungkan setelah verifikasi PIN.',
       'warning'
     );
   } finally {
@@ -15406,7 +15523,6 @@ function clearDeletedProductSkuTombstone(sku) {
 function compactProductForCloud(p) {
   if (!p || typeof p !== 'object') return p;
   const copy = { ...p };
-  // Strip deterministic auto-generated SVG data URI to save ~85% bandwidth & localStorage quota
   if (typeof copy.image === 'string' && copy.image.startsWith('data:image/svg+xml')) {
     copy.image = '';
   }
@@ -15426,7 +15542,6 @@ function expandProductFromCloud(p) {
 
 function loadGoogleSyncState() {
   try {
-    // Hapus riwayat akun Google yang pernah terhubung demi keamanan akun
     localStorage.removeItem('aladinpay_google_accounts_history');
     const raw = localStorage.getItem('aladinpay_google_sync_state');
     if (raw) {
@@ -15507,31 +15622,35 @@ function updateProductTabGoogleSyncBarUI() {
     const isRelayConnected = Boolean(googleCloudMqttClient && googleCloudMqttClient.connected);
     const peerCount = Math.max(1, Object.keys(googleCloudDevicesMap).length);
     if (statusBadge) {
-      statusBadge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300';
+      statusBadge.className = isRelayConnected
+        ? 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300'
+        : 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300';
     }
     if (statusDot) {
-      statusDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
+      statusDot.className = isRelayConnected
+        ? 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse'
+        : 'w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse';
     }
     if (statusText) {
-      statusText.innerText = isRelayConnected ? 'Tersinkronisasi Lintas Perangkat' : 'Siap Sinkronisasi Cloud';
+      statusText.innerText = isRelayConnected ? 'Tersinkronisasi Lintas Perangkat' : 'Menghubungkan Cloud Relay...';
     }
     if (peersBadge) {
       peersBadge.innerText = peerCount > 1
         ? `${peerCount} Perangkat Aktif di Akun Ini`
-        : (isRelayConnected ? 'Cloud Relay Aktif' : 'Vault Lokal & Drive');
+        : (isRelayConnected ? 'Cloud Relay Aktif' : 'Menunggu Koneksi Internet');
     }
     const pinProtectBadge = document.getElementById('prodTabGooglePinProtectBadge');
     if (pinProtectBadge) {
       const pinOn = googleSyncState.requirePinForSync !== false;
       const protOn = googleSyncState.protectLocalProducts !== false;
-      pinProtectBadge.innerHTML = `<i class="fa-solid fa-shield-halved text-[9px]"></i><span>${pinOn ? 'Wajib PIN' : 'Tanpa PIN'} • ${protOn ? 'Anti-Timpa Lokal' : 'Mode Normal'}</span>`;
+      pinProtectBadge.innerHTML = `<i class="fa-solid fa-shield-halved text-[9px]"></i><span>${pinOn ? 'Wajib PIN' : 'Auto-Sync'} • ${protOn ? 'Anti-Timpa Lokal' : 'Mode Normal'}</span>`;
     }
     if (lastSyncText) {
       const tStr = googleSyncState.lastSync
         ? new Date(googleSyncState.lastSync).toLocaleTimeString('id-ID')
         : 'Siap Sinkron (PIN)';
       lastSyncText.innerText = hasUnsyncedLocalGoogleChanges
-        ? `Perubahan lokal tersimpan di perangkat • Klik Simpan ke Google (PIN)`
+        ? `Perubahan lokal belum diunggah • Klik Simpan ke Google`
         : `Update: ${tStr}`;
     }
   } else {
@@ -15605,7 +15724,8 @@ async function renderGoogleSyncModalUI() {
       chLabel.innerText = computeGoogleAccountChannelHash(googleSyncState.email, googleSyncState.syncPin);
     }
     if (trLabel) {
-      const activeLayers = ['Cloud Relay Lintas Perangkat'];
+      const isRelayOnline = Boolean(googleCloudMqttClient && googleCloudMqttClient.connected);
+      const activeLayers = [isRelayOnline ? 'Cloud Relay Aktif (Online)' : 'Cloud Relay (Menghubungkan...)'];
       if (googleSyncState.webhookUrl) activeLayers.push('Google Drive Apps Script');
       if (googleSyncState.accessToken) activeLayers.push('Google Drive OAuth API');
       trLabel.innerText = activeLayers.join(' + ');
@@ -15623,7 +15743,6 @@ async function renderGoogleSyncModalUI() {
     if (nameInp) nameInp.value = '';
   }
 
-  // Riwayat akun Google yang pernah terhubung tidak ditampilkan demi keamanan akun
   try { localStorage.removeItem('aladinpay_google_accounts_history'); } catch (e) {}
   updateProductTabGoogleSyncBarUI();
 }
@@ -15643,7 +15762,7 @@ async function handleGoogleAccountSignIn(e) {
 
   const approved = await requestGoogleSyncPinVerification(
     'Verifikasi PIN Hubungkan Akun Google',
-    `Masukkan PIN Pengguna untuk menghubungkan akun "${email}" dan menyimpan pengaturan sinkronisasi.`
+    `Masukkan PIN Pengguna untuk menghubungkan akun "${email}" dan menyinkronkan Data Barang serta Pengaturan.`
   );
   if (!approved) return;
 
@@ -15667,6 +15786,8 @@ async function performGoogleAccountLoginAndSync(email, name, role, pinAlreadyVer
     if (!approved) return;
   }
 
+  // Reset cached remote snapshots if switching to another email/channel
+  const prevEmail = googleSyncState.email;
   googleSyncState.connected = true;
   googleSyncState.email = email;
   googleSyncState.name = name;
@@ -15674,6 +15795,17 @@ async function performGoogleAccountLoginAndSync(email, name, role, pinAlreadyVer
   googleSyncState.lastSync = new Date().toISOString();
   saveGoogleSyncState();
   addSavedGoogleAccountToHistory({ email, name, role });
+
+  if (prevEmail !== email) {
+    googleCloudLatestRemoteProducts = null;
+    googleCloudLatestRemoteSettings = null;
+    googleCloudLatestRemoteFullSnap = null;
+    pendingGoogleCloudSync = null;
+    setPersistedLastAppliedSyncId('');
+    setPersistedLastAppliedSettingsSyncId('');
+    setPersistedLastAppliedFullSyncId('');
+    updatePendingGoogleCloudSyncUI();
+  }
 
   // Ensure user exists in 'users' store and log them into POS
   const users = await getAll('users');
@@ -15683,8 +15815,8 @@ async function performGoogleAccountLoginAndSync(email, name, role, pinAlreadyVer
       username: email,
       name: name,
       role: role,
-      password: 'google-oauth-login',
-      pin: '123456',
+      password: hashCredential('google-oauth-login'),
+      pin: hashCredential('123456'),
       googleEmail: email
     };
     const newId = await putItem('users', googlePosUser, true);
@@ -15695,22 +15827,85 @@ async function performGoogleAccountLoginAndSync(email, name, role, pinAlreadyVer
     await putItem('users', googlePosUser, true);
   }
 
-  // Connect to Cross-Device Google Account Cloud Relay (incoming updates are staged behind PIN)
-  initGoogleAccountCloudRelay();
+  // 1. Tunggu koneksi Cross-Device Cloud Relay aktif (PENTING agar tidak gagal push/pull!)
+  const relayReady = await ensureGoogleCloudMqttConnected(6500);
 
-  // Push local device data safely without silently pulling/reverting local products
-  await syncPushToGoogleAccount(false, true);
+  // 2. Cek apakah di Cloud (Relay / Apps Script / Drive) sudah ada Data Barang & Pengaturan dari perangkat lain
+  //    JANGAN langsung menimpa Cloud dengan data kosong perangkat baru!
+  const localProductsBefore = await getAll('products');
+  let pulledFromCloud = false;
+  let pulledSummary = '';
 
-  // Complete POS login if loginOverlay is open
+  const cloudData = await fetchBestRemoteGoogleCloudData(3200);
+  if (cloudData && (
+    (Array.isArray(cloudData.products) && cloudData.products.length > 0) ||
+    (cloudData.settingsPayload && Array.isArray(cloudData.settingsPayload.settings) && cloudData.settingsPayload.settings.length > 0) ||
+    cloudData.fullSnap
+  )) {
+    isApplyingExternalSync = true;
+    try {
+      let appliedProds = 0;
+      let appliedSettings = 0;
+      if (Array.isArray(cloudData.products) && cloudData.products.length > 0) {
+        appliedProds = await mergeProductsToIndexedDB(cloudData.products, googleSyncState.mergeMode || 'smart_sku', cloudData.deletedProductSkus || [], true);
+      }
+      if (cloudData.settingsPayload) {
+        appliedSettings = await applySettingsSnapshotToIndexedDB(cloudData.settingsPayload);
+      }
+      if (cloudData.fullSnap) {
+        await applyDatabaseSnapshotToIndexedDB(cloudData.fullSnap, googleSyncState.mergeMode || 'smart_sku', true);
+      }
+      if (cloudData.syncId) setPersistedLastAppliedSyncId(cloudData.syncId);
+      if (cloudData.settingsSyncId) setPersistedLastAppliedSettingsSyncId(cloudData.settingsSyncId);
+      if (cloudData.fullSyncId) setPersistedLastAppliedFullSyncId(cloudData.fullSyncId);
+      pendingGoogleCloudSync = null;
+      updatePendingGoogleCloudSyncUI();
+      pulledFromCloud = true;
+      pulledSummary = `Berhasil menarik ${appliedProds || (cloudData.products ? cloudData.products.length : 0)} Data Barang & ${appliedSettings || 'seluruh'} Pengaturan dari ${cloudData.sourceName || 'Akun Google'}!`;
+    } finally {
+      isApplyingExternalSync = false;
+    }
+  }
+
+  // 3. Jika perangkat ini memang memiliki Data Barang sendiri (atau belum ada data di Cloud sama sekali), unggah ke Cloud
+  if (!pulledFromCloud && (localProductsBefore.length > 0 || !cloudData)) {
+    await syncPushToGoogleAccount(false, true);
+  } else if (pulledFromCloud && localProductsBefore.length > 0) {
+    // Jika kedua perangkat punya data, unggah hasil gabungan agar kedua perangkat identik
+    await syncPushToGoogleAccount(false, true);
+  }
+
   completeLogin(googlePosUser);
+  await loadStoreSettings();
+  if (typeof updateTopHeaderForActiveMenu === 'function' && typeof getCurrentActiveTabId === 'function') {
+    updateTopHeaderForActiveMenu(getCurrentActiveTabId());
+  }
+  await populatePosCategories();
+  await populateProductCategoryFilter();
+  await renderAll();
   await renderGoogleSyncModalUI();
   closeModal('googleSyncModal');
+
   const currentProducts = await getAll('products');
-  showCustomAlert(
-    'Akun Google Terhubung (Perlindungan PIN Aktif)',
-    `Akun Google "${name}" (${email}) berhasil terhubung! ${currentProducts.length} Data Barang di penyimpanan perangkat Anda tetap aman dan tidak ditimpa otomatis. Sinkronisasi data baru kini membutuhkan PIN Pengguna.`,
-    'warning'
-  );
+  if (pulledFromCloud) {
+    showCustomAlert(
+      'Akun Google Tersinkronisasi!',
+      `Akun "${name}" (${email}) terhubung. ${pulledSummary} Total saat ini: ${currentProducts.length} Data Barang.`,
+      'warning'
+    );
+  } else if (!relayReady && !googleSyncState.webhookUrl && !googleSyncState.accessToken) {
+    showCustomAlert(
+      'Akun Google Terhubung (Mode Offline)',
+      `Akun "${name}" (${email}) tersimpan lokal, namun koneksi internet / Cloud Relay belum terjangkau. Pastikan perangkat terhubung internet lalu klik "Push Semua" atau "Tarik Semua".`,
+      'warning'
+    );
+  } else {
+    showCustomAlert(
+      'Akun Google Terhubung & Terunggah!',
+      `Akun "${name}" (${email}) berhasil terhubung ke Cloud Relay Lintas Perangkat. ${currentProducts.length} Data Barang & Pengaturan toko siap ditarik dari perangkat lain menggunakan email yang sama.`,
+      'warning'
+    );
+  }
 }
 
 function toggleGoogleAutoSync(enabled) {
@@ -15728,8 +15923,10 @@ function collectLocalSettingsForSync() {
   ];
   const out = {};
   keys.forEach(k => {
-    const v = localStorage.getItem(k);
-    if (v !== null) out[k] = v;
+    try {
+      const v = localStorage.getItem(k);
+      if (v !== null) out[k] = v;
+    } catch (e) {}
   });
   return out;
 }
@@ -15746,8 +15943,9 @@ function applyLocalSettingsFromSync(localSettings) {
 async function collectFullDatabaseSnapshot(compactImages = true) {
   const rawProducts = await getAll('products');
   const products = compactImages ? rawProducts.map(compactProductForCloud) : rawProducts;
+  const allSettings = (await getAll('settings')).filter(s => s && s.key !== 'deviceLicenseRecord');
   return {
-    version: 5,
+    version: 6,
     syncedAt: new Date().toISOString(),
     googleAccount: googleSyncState.email || '',
     senderDeviceId: typeof lanNetworkConfig !== 'undefined' ? lanNetworkConfig.deviceId : 'DEV-LOCAL',
@@ -15764,17 +15962,18 @@ async function collectFullDatabaseSnapshot(compactImages = true) {
     stock_logs: await getAll('stock_logs'),
     audit_logs: await getAll('audit_logs'),
     users: await getAll('users'),
-    settings: await getAll('settings'),
+    settings: allSettings,
     localSettings: collectLocalSettingsForSync()
   };
 }
 
 /**
  * Smart Batch Product Merger by SKU / Barcode
- * Memastikan Data Barang dari berbagai perangkat tergabung rapi berdasarkan SKU/Barcode
- * tanpa kehilangan barang baru yang ditambahkan di perangkat lain, serta sangat cepat untuk ribuan barang.
+ * - Saat allowNewerUpdate = true (Tarik Manual / Verifikasi PIN / Login), barang baru ditambahkan DAN barang yang sudah ada
+ *   diperbarui bila versi Cloud memiliki timestamp `updatedAt` lebih baru (tidak pernah kembali ke data lama!).
+ * - Bila `protectLocalProducts` aktif, barang lokal tidak pernah dihapus otomatis oleh cloud.
  */
-async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', deletedSkus = []) {
+async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', deletedSkus = [], allowNewerUpdate = false) {
   if (!Array.isArray(cloudProducts) || !db) return 0;
   isApplyingExternalSync = true;
   try {
@@ -15785,12 +15984,15 @@ async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', 
     });
 
     const protectLocal = googleSyncState.protectLocalProducts !== false;
-    const effectiveMergeMode = (protectLocal && existingProducts.length > 0) ? 'smart_sku' : mergeMode;
+    const effectiveMergeMode = (mergeMode === 'overwrite' && (!protectLocal || allowNewerUpdate))
+      ? 'overwrite'
+      : 'smart_sku';
     const deletedSet = new Set((Array.isArray(deletedSkus) ? deletedSkus : []).map(s => String(s).trim()));
 
     return await new Promise((resolve) => {
       const tx = db.transaction('products', 'readwrite');
       const store = tx.objectStore('products');
+      let changedCount = 0;
 
       if (effectiveMergeMode === 'overwrite') {
         store.clear();
@@ -15799,9 +16001,9 @@ async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', 
           const expanded = expandProductFromCloud(rawProd);
           const toPut = { ...expanded, id: expanded.id || (idx + 1) };
           store.put(toPut);
+          changedCount++;
         });
       } else {
-        // Smart Merge by Barcode/SKU dengan Perlindungan Penyimpanan Perangkat (Anti-Revert)
         if (!protectLocal && deletedSet.size > 0) {
           existingProducts.forEach(ep => {
             if (ep && ep.sku && deletedSet.has(String(ep.sku).trim()) && ep.id !== undefined) {
@@ -15820,8 +16022,8 @@ async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', 
           const expandedCloud = expandProductFromCloud(rawProd);
 
           if (localMatch) {
-            if (protectLocal) {
-              // Mode Anti-Timpa Lokal Aktif: barang yang sudah disimpan di perangkat TIDAK pernah ditimpa/dikembalikan ke data awal
+            // Jika mode Anti-Timpa Lokal aktif dan BUKAN aksi tarik/PIN manual, lindungi item lokal
+            if (protectLocal && !allowNewerUpdate) {
               return;
             }
             const localTime = Math.max(
@@ -15829,8 +16031,8 @@ async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', 
               localMatch.updatedAt ? (Date.parse(localMatch.updatedAt) || 0) : 0
             );
             const cloudTime = expandedCloud.updatedAt ? (Date.parse(expandedCloud.updatedAt) || 0) : 0;
-            // Jangan pernah menimpa data lokal dengan data cloud yang lebih lama atau tanpa timestamp
-            if (cloudTime <= 0 || localTime >= cloudTime) {
+            // Jangan menimpa data lokal yang jelas lebih baru daripada data cloud
+            if (localTime > 0 && cloudTime > 0 && localTime > cloudTime) {
               return;
             }
             const mergedItem = {
@@ -15842,6 +16044,7 @@ async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', 
                 : (localMatch.image || expandedCloud.image || '')
             };
             store.put(mergedItem);
+            changedCount++;
           } else {
             const newItem = {
               ...expandedCloud,
@@ -15849,11 +16052,12 @@ async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', 
             };
             delete newItem.id;
             store.put(newItem);
+            changedCount++;
           }
         });
       }
 
-      tx.oncomplete = () => resolve(cloudProducts.length);
+      tx.oncomplete = () => resolve(changedCount || cloudProducts.length);
       tx.onerror = () => resolve(0);
     });
   } finally {
@@ -15862,7 +16066,7 @@ async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', 
   }
 }
 
-async function applyDatabaseSnapshotToIndexedDB(snapshot, customMergeMode = null) {
+async function applyDatabaseSnapshotToIndexedDB(snapshot, customMergeMode = null, allowNewerUpdate = false) {
   if (!snapshot || typeof snapshot !== 'object') return;
   isApplyingExternalSync = true;
   try {
@@ -15886,8 +16090,8 @@ async function applyDatabaseSnapshotToIndexedDB(snapshot, customMergeMode = null
           saveGoogleSyncState();
         }
       }
-    } else if (Array.isArray(snapshot.products)) {
-      await mergeProductsToIndexedDB(snapshot.products, effectiveMode, snapshot.deletedProductSkus || []);
+    } else if (Array.isArray(snapshot.products) && snapshot.products.length > 0) {
+      await mergeProductsToIndexedDB(snapshot.products, effectiveMode, snapshot.deletedProductSkus || [], allowNewerUpdate);
     }
 
     const otherStores = ['transactions', 'suppliers', 'customers', 'purchases', 'debts', 'stock_logs', 'audit_logs', 'users', 'settings'];
@@ -15898,6 +16102,7 @@ async function applyDatabaseSnapshotToIndexedDB(snapshot, customMergeMode = null
             const tx = db.transaction(sName, 'readwrite');
             const store = tx.objectStore(sName);
             snapshot[sName].forEach(item => {
+              if (sName === 'settings' && item && item.key === 'deviceLicenseRecord') return;
               try { store.put(item); } catch (e) {}
             });
             tx.oncomplete = () => resolve(true);
@@ -15909,6 +16114,9 @@ async function applyDatabaseSnapshotToIndexedDB(snapshot, customMergeMode = null
       }
     }
     await loadStoreSettings();
+    if (typeof updateTopHeaderForActiveMenu === 'function' && typeof getCurrentActiveTabId === 'function') {
+      updateTopHeaderForActiveMenu(getCurrentActiveTabId());
+    }
     await renderAll();
     updateProductTabGoogleSyncBarUI();
   } finally {
@@ -15916,17 +16124,88 @@ async function applyDatabaseSnapshotToIndexedDB(snapshot, customMergeMode = null
   }
 }
 
-/* ---- Dedicated Cross-Device Google Account Cloud Relay (MQTT Retained Chunks + Live Delta) ---- */
-function initGoogleAccountCloudRelay() {
+/* ---- Helper Pemecah Paket Aman Berdasarkan Ukuran Byte (Anti-Drop di Broker MQTT Publik) ---- */
+function chunkItemsByCharLimit(items, maxChars = GOOGLE_CLOUD_MAX_CHUNK_CHARS) {
+  if (!Array.isArray(items) || items.length === 0) return [[]];
+  const chunks = [];
+  let current = [];
+  let currentLen = 2;
+
+  for (let i = 0; i < items.length; i++) {
+    let item = items[i];
+    let serialized = '';
+    try { serialized = JSON.stringify(item); } catch (e) { continue; }
+    // Jika satu produk memiliki foto sangat besar (> 45 KB), pangkas tetap aman dalam 1 chunk khusus
+    if (current.length > 0 && (currentLen + serialized.length + 1) > maxChars) {
+      chunks.push(current);
+      current = [item];
+      currentLen = serialized.length + 2;
+    } else {
+      current.push(item);
+      currentLen += serialized.length + 1;
+    }
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks.length > 0 ? chunks : [[]];
+}
+
+function notifyGoogleCloudPullWaiters() {
+  if (googleCloudPullWaiters.length === 0) return;
+  const copy = googleCloudPullWaiters.slice();
+  copy.forEach(fn => {
+    try { fn(); } catch (e) {}
+  });
+}
+
+function ensureGoogleCloudMqttConnected(timeoutMs = 7000) {
+  return new Promise((resolve) => {
+    if (!window.mqtt || !googleSyncState.connected || !googleSyncState.email) {
+      resolve(false);
+      return;
+    }
+    const desiredBase = getGoogleAccountCloudTopicBase(googleSyncState.email, googleSyncState.syncPin);
+    if (googleCloudMqttClient && googleCloudMqttClient.connected && googleCloudActiveTopicBase === desiredBase) {
+      resolve(true);
+      return;
+    }
+    initGoogleAccountCloudRelay();
+    if (!googleCloudMqttClient) {
+      resolve(false);
+      return;
+    }
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(checkInt);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const checkInt = setInterval(() => {
+      if (googleCloudMqttClient && googleCloudMqttClient.connected && googleCloudActiveTopicBase === desiredBase) {
+        finish(true);
+      }
+    }, 150);
+    const timer = setTimeout(() => finish(Boolean(googleCloudMqttClient && googleCloudMqttClient.connected)), timeoutMs);
+  });
+}
+
+/* ---- Dedicated Cross-Device Google Account Cloud Relay (Auto-Failover Multi-Broker + Retained Chunks + Live Delta) ---- */
+function initGoogleAccountCloudRelay(forceReconnect = false) {
   if (!window.mqtt || !googleSyncState.connected || !googleSyncState.email) {
     updateProductTabGoogleSyncBarUI();
     return;
   }
 
   const desiredBase = getGoogleAccountCloudTopicBase(googleSyncState.email, googleSyncState.syncPin);
-  if (googleCloudMqttClient && googleCloudMqttClient.connected && googleCloudActiveTopicBase === desiredBase) {
+  if (!forceReconnect && googleCloudMqttClient && googleCloudMqttClient.connected && googleCloudActiveTopicBase === desiredBase) {
     updateProductTabGoogleSyncBarUI();
     return;
+  }
+
+  if (googleCloudConnectFailoverTimer) {
+    clearTimeout(googleCloudConnectFailoverTimer);
+    googleCloudConnectFailoverTimer = null;
   }
 
   if (googleCloudMqttClient) {
@@ -15936,35 +16215,54 @@ function initGoogleAccountCloudRelay() {
 
   googleCloudActiveTopicBase = desiredBase;
   const brokerUrl = LAN_MQTT_BROKERS[googleCloudBrokerIdx % LAN_MQTT_BROKERS.length];
-  const devId = (typeof lanNetworkConfig !== 'undefined' && lanNetworkConfig.deviceId) ? lanNetworkConfig.deviceId : ('GDEV-' + Math.floor(1000 + Math.random() * 9000));
+  const devId = (typeof lanNetworkConfig !== 'undefined' && lanNetworkConfig.deviceId)
+    ? lanNetworkConfig.deviceId
+    : ('GDEV-' + Math.floor(1000 + Math.random() * 9000));
 
   try {
-    googleCloudMqttClient = window.mqtt.connect(brokerUrl, {
+    const client = window.mqtt.connect(brokerUrl, {
       clientId: 'aladinpay_gcloud_' + devId + '_' + Math.random().toString(16).slice(2, 6),
       clean: true,
-      connectTimeout: 6000,
-      reconnectPeriod: 4000
+      connectTimeout: 5000,
+      reconnectPeriod: 0 // Failover manual agar otomatis pindah ke broker cadangan bila gagal
     });
+    googleCloudMqttClient = client;
 
-    googleCloudMqttClient.on('connect', () => {
+    // Auto-failover jika broker saat ini tidak tersambung dalam 5.5 detik
+    googleCloudConnectFailoverTimer = setTimeout(() => {
+      if (googleCloudMqttClient === client && !client.connected && googleSyncState.connected) {
+        googleCloudBrokerIdx = (googleCloudBrokerIdx + 1) % LAN_MQTT_BROKERS.length;
+        initGoogleAccountCloudRelay(true);
+      }
+    }, 5500);
+
+    client.on('connect', () => {
+      if (googleCloudMqttClient !== client) return;
+      if (googleCloudConnectFailoverTimer) {
+        clearTimeout(googleCloudConnectFailoverTimer);
+        googleCloudConnectFailoverTimer = null;
+      }
       updateProductTabGoogleSyncBarUI();
-      if (!googleCloudMqttClient) return;
-      googleCloudMqttClient.subscribe(`${desiredBase}/manifest`, { qos: 0 });
-      googleCloudMqttClient.subscribe(`${desiredBase}/prod_chunk/+`, { qos: 0 });
-      googleCloudMqttClient.subscribe(`${desiredBase}/full_manifest`, { qos: 0 });
-      googleCloudMqttClient.subscribe(`${desiredBase}/full_chunk/+`, { qos: 0 });
-      googleCloudMqttClient.subscribe(`${desiredBase}/delta`, { qos: 0 });
-      googleCloudMqttClient.subscribe(`${desiredBase}/presence`, { qos: 0 });
-      googleCloudMqttClient.subscribe(`${desiredBase}/request_sync`, { qos: 0 });
+      client.subscribe(`${desiredBase}/manifest`, { qos: 1 });
+      client.subscribe(`${desiredBase}/prod_chunk/+`, { qos: 1 });
+      client.subscribe(`${desiredBase}/settings_manifest`, { qos: 1 });
+      client.subscribe(`${desiredBase}/settings_chunk/+`, { qos: 1 });
+      client.subscribe(`${desiredBase}/full_manifest`, { qos: 1 });
+      client.subscribe(`${desiredBase}/full_chunk/+`, { qos: 1 });
+      client.subscribe(`${desiredBase}/delta`, { qos: 0 });
+      client.subscribe(`${desiredBase}/presence`, { qos: 0 });
+      client.subscribe(`${desiredBase}/request_sync`, { qos: 0 });
 
-      announceGoogleAccountDevicePresence();
+      announceGoogleAccountDevicePresence(true);
     });
 
-    googleCloudMqttClient.on('message', async (topic, payloadBuf) => {
-      if (!payloadBuf) return;
+    client.on('message', async (topic, payloadBuf) => {
+      if (googleCloudMqttClient !== client || !payloadBuf) return;
+      const rawStr = payloadBuf.toString();
+      if (!rawStr || rawStr.trim() === '') return; // Retained tombstone kosong (pembersih chunk lama)
       let data = null;
       try {
-        data = JSON.parse(payloadBuf.toString());
+        data = JSON.parse(rawStr);
       } catch (e) {
         return;
       }
@@ -15990,7 +16288,10 @@ function initGoogleAccountCloudRelay() {
 
       if (topic.endsWith('/request_sync')) {
         if (data.senderDeviceId && data.senderDeviceId !== myDevId) {
-          await publishRetainedGoogleCloudProductsSnapshot();
+          const localProds = await getAll('products');
+          if (localProds.length > 0 || storeConfig.storeName) {
+            await publishRetainedGoogleCloudProductsSnapshot();
+          }
         }
         return;
       }
@@ -15999,7 +16300,6 @@ function initGoogleAccountCloudRelay() {
         if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
         if (!googleSyncState.autoSync) return;
 
-        // Jika Wajib PIN aktif, tahan perubahan masuk dan minta verifikasi PIN pengguna sebelum diterapkan
         if (googleSyncState.requirePinForSync !== false) {
           stagePendingGoogleCloudUpdate({
             delta: data,
@@ -16012,7 +16312,9 @@ function initGoogleAccountCloudRelay() {
         try {
           if (data.opType === 'put' && data.storeName && data.payload) {
             if (data.storeName === 'products') {
-              await mergeProductsToIndexedDB([data.payload], 'smart_sku', []);
+              await mergeProductsToIndexedDB([data.payload], 'smart_sku', [], true);
+            } else if (data.storeName === 'settings' && data.payload.key === 'deviceLicenseRecord') {
+              return;
             } else {
               await putItem(data.storeName, data.payload, true);
             }
@@ -16026,7 +16328,7 @@ function initGoogleAccountCloudRelay() {
               if (targetProd && targetProd.id !== undefined) {
                 await deleteItem('products', targetProd.id, true);
               }
-            } else if (data.payload.key !== undefined) {
+            } else if (data.payload && data.payload.key !== undefined) {
               await deleteItem(data.storeName, data.payload.key, true);
             }
           } else if (data.opType === 'clear' && data.storeName === 'products' && db) {
@@ -16042,6 +16344,9 @@ function initGoogleAccountCloudRelay() {
           googleSyncState.lastSync = new Date().toISOString();
           saveGoogleSyncState();
           await loadStoreSettings();
+          if (typeof updateTopHeaderForActiveMenu === 'function' && typeof getCurrentActiveTabId === 'function') {
+            updateTopHeaderForActiveMenu(getCurrentActiveTabId());
+          }
           await renderAll();
           if (typeof addLanActivityLog === 'function') {
             addLanActivityLog(`Google Cloud (${data.senderDeviceName || 'Perangkat Lain'})`, `Sinkronisasi ${data.storeName} (${data.opType.toUpperCase()})`);
@@ -16052,16 +16357,12 @@ function initGoogleAccountCloudRelay() {
         return;
       }
 
+      // ---- 1. Data Barang Chunks ----
       if (topic.endsWith('/manifest')) {
-        if (!data.syncId || data.syncId === googleCloudLastAppliedSyncId) return;
+        if (!data.syncId) return;
         if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
-
         if (!googleCloudIncomingChunks[data.syncId]) {
-          googleCloudIncomingChunks[data.syncId] = {
-            totalChunks: data.totalChunks || 0,
-            parts: {},
-            meta: data
-          };
+          googleCloudIncomingChunks[data.syncId] = { totalChunks: data.totalChunks || 0, parts: {}, meta: data };
         } else {
           googleCloudIncomingChunks[data.syncId].meta = data;
           googleCloudIncomingChunks[data.syncId].totalChunks = data.totalChunks || 0;
@@ -16071,15 +16372,10 @@ function initGoogleAccountCloudRelay() {
       }
 
       if (topic.includes('/prod_chunk/')) {
-        if (!data.syncId || data.syncId === googleCloudLastAppliedSyncId) return;
+        if (!data.syncId) return;
         if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
-
         if (!googleCloudIncomingChunks[data.syncId]) {
-          googleCloudIncomingChunks[data.syncId] = {
-            totalChunks: data.totalChunks || 0,
-            parts: {},
-            meta: null
-          };
+          googleCloudIncomingChunks[data.syncId] = { totalChunks: data.totalChunks || 0, parts: {}, meta: null };
         }
         const entry = googleCloudIncomingChunks[data.syncId];
         if (data.totalChunks) entry.totalChunks = data.totalChunks;
@@ -16088,8 +16384,36 @@ function initGoogleAccountCloudRelay() {
         return;
       }
 
+      // ---- 2. Pengaturan Toko Dedicated Chunks (Ringan & Cepat) ----
+      if (topic.endsWith('/settings_manifest')) {
+        if (!data.syncId) return;
+        if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
+        if (!googleCloudIncomingSettingsChunks[data.syncId]) {
+          googleCloudIncomingSettingsChunks[data.syncId] = { totalChunks: data.totalChunks || 0, parts: {}, meta: data };
+        } else {
+          googleCloudIncomingSettingsChunks[data.syncId].meta = data;
+          googleCloudIncomingSettingsChunks[data.syncId].totalChunks = data.totalChunks || 0;
+        }
+        await checkAndApplyReassembledSettingsChunks(data.syncId);
+        return;
+      }
+
+      if (topic.includes('/settings_chunk/')) {
+        if (!data.syncId) return;
+        if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
+        if (!googleCloudIncomingSettingsChunks[data.syncId]) {
+          googleCloudIncomingSettingsChunks[data.syncId] = { totalChunks: data.totalChunks || 0, parts: {}, meta: null };
+        }
+        const entry = googleCloudIncomingSettingsChunks[data.syncId];
+        if (data.totalChunks) entry.totalChunks = data.totalChunks;
+        entry.parts[data.chunkIndex] = typeof data.chunkStr === 'string' ? data.chunkStr : '';
+        await checkAndApplyReassembledSettingsChunks(data.syncId);
+        return;
+      }
+
+      // ---- 3. Full Database (Transaksi, Pelanggan, Hutang, dll.) Chunks ----
       if (topic.endsWith('/full_manifest')) {
-        if (!data.syncId || data.syncId === googleCloudLastAppliedFullSyncId) return;
+        if (!data.syncId) return;
         if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
         if (!googleCloudIncomingFullChunks[data.syncId]) {
           googleCloudIncomingFullChunks[data.syncId] = { totalChunks: data.totalChunks || 0, parts: {}, meta: data };
@@ -16102,7 +16426,7 @@ function initGoogleAccountCloudRelay() {
       }
 
       if (topic.includes('/full_chunk/')) {
-        if (!data.syncId || data.syncId === googleCloudLastAppliedFullSyncId) return;
+        if (!data.syncId) return;
         if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
         if (!googleCloudIncomingFullChunks[data.syncId]) {
           googleCloudIncomingFullChunks[data.syncId] = { totalChunks: data.totalChunks || 0, parts: {}, meta: null };
@@ -16114,9 +16438,21 @@ function initGoogleAccountCloudRelay() {
       }
     });
 
-    googleCloudMqttClient.on('error', () => {
-      googleCloudBrokerIdx++;
+    client.on('error', () => {
+      if (googleCloudMqttClient !== client) return;
       updateProductTabGoogleSyncBarUI();
+    });
+
+    client.on('close', () => {
+      if (googleCloudMqttClient !== client) return;
+      updateProductTabGoogleSyncBarUI();
+      if (googleSyncState.connected && navigator.onLine !== false) {
+        if (googleCloudConnectFailoverTimer) clearTimeout(googleCloudConnectFailoverTimer);
+        googleCloudConnectFailoverTimer = setTimeout(() => {
+          googleCloudBrokerIdx = (googleCloudBrokerIdx + 1) % LAN_MQTT_BROKERS.length;
+          initGoogleAccountCloudRelay(true);
+        }, 4500);
+      }
     });
   } catch (err) {
     console.warn('Google Cloud Relay init error:', err);
@@ -16137,18 +16473,32 @@ async function checkAndApplyReassembledGoogleCloudChunks(syncId) {
     }
   }
   const deletedSkus = (entry.meta && Array.isArray(entry.meta.deletedProductSkus)) ? entry.meta.deletedProductSkus : [];
-  const metaSyncedAt = entry.meta && entry.meta.syncedAt ? Date.parse(entry.meta.syncedAt) || 0 : 0;
-  const localLastSaved = getLocalProductsLastSavedAt();
   const senderDeviceName = (entry.meta && entry.meta.senderDeviceName) ? entry.meta.senderDeviceName : 'Perangkat Lain';
+  const syncedAt = (entry.meta && entry.meta.syncedAt) ? entry.meta.syncedAt : new Date().toISOString();
+  const replaceProducts = Boolean(entry.meta && entry.meta.replaceProducts);
+  const productsClearedAt = (entry.meta && entry.meta.productsClearedAt) ? entry.meta.productsClearedAt : null;
   delete googleCloudIncomingChunks[syncId];
 
-  // Abaikan snapshot cloud lama (retained MQTT) yang lebih tua dari waktu simpan terakhir perangkat ini
-  if (metaSyncedAt > 0 && localLastSaved > 0 && metaSyncedAt < localLastSaved) {
-    setPersistedLastAppliedSyncId(syncId);
-    return;
+  // Simpan selalu ke buffer memori terbaru agar tombol "Tarik Barang dari Google" selalu bisa membacanya!
+  googleCloudLatestRemoteProducts = {
+    syncId,
+    syncedAt,
+    products: combinedProducts,
+    deletedProductSkus: deletedSkus,
+    replaceProducts,
+    productsClearedAt,
+    senderDeviceName
+  };
+  const remoteBadge = document.getElementById('googleCloudRemoteProdBadge');
+  if (remoteBadge) {
+    remoteBadge.innerText = `${combinedProducts.length} Barang di Cloud`;
   }
+  notifyGoogleCloudPullWaiters();
 
-  // Jika Wajib PIN aktif, tahan snapshot di antrean persetujuan PIN (jangan timpa otomatis!)
+  // Jika syncId ini sudah pernah diterapkan di perangkat ini, cukup perbarui buffer tanpa menampilkan banner ulang
+  if (syncId === googleCloudLastAppliedSyncId) return;
+
+  // Jika Wajib PIN aktif, tahan snapshot di banner global & modal (jangan timpa otomatis!)
   if (googleSyncState.requirePinForSync !== false) {
     if (combinedProducts.length > 0) {
       stagePendingGoogleCloudUpdate({
@@ -16164,7 +16514,7 @@ async function checkAndApplyReassembledGoogleCloudChunks(syncId) {
   }
 
   setPersistedLastAppliedSyncId(syncId);
-  if (entry.meta && entry.meta.replaceProducts && combinedProducts.length === 0 && db) {
+  if (replaceProducts && combinedProducts.length === 0 && db) {
     if (googleSyncState.protectLocalProducts !== false) return;
     await new Promise((res) => {
       const tx = db.transaction('products', 'readwrite');
@@ -16173,23 +16523,110 @@ async function checkAndApplyReassembledGoogleCloudChunks(syncId) {
       tx.onerror = () => res(false);
     });
     invalidateProductsCache();
-    googleSyncState.productsClearedAt = entry.meta.productsClearedAt || new Date().toISOString();
+    googleSyncState.productsClearedAt = productsClearedAt || new Date().toISOString();
     googleSyncState.lastSync = new Date().toISOString();
     saveGoogleSyncState();
     await renderAll();
   } else if (combinedProducts.length > 0) {
-    await mergeProductsToIndexedDB(combinedProducts, googleSyncState.mergeMode || 'smart_sku', deletedSkus);
+    await mergeProductsToIndexedDB(combinedProducts, googleSyncState.mergeMode || 'smart_sku', deletedSkus, true);
     googleSyncState.lastSync = new Date().toISOString();
     saveGoogleSyncState();
+    await populatePosCategories();
+    await populateProductCategoryFilter();
     await renderAll();
-    const remoteBadge = document.getElementById('googleCloudRemoteProdBadge');
-    if (remoteBadge) {
-      remoteBadge.innerText = `${combinedProducts.length} Barang Tersinkron`;
-    }
     if (typeof addLanActivityLog === 'function') {
-      addLanActivityLog('Google Cloud Sync', `Menerima & menggabungkan ${combinedProducts.length} Data Barang dari Akun Google (${googleSyncState.email})`);
+      addLanActivityLog('Google Cloud Sync', `Menerima & menggabungkan ${combinedProducts.length} Data Barang dari ${senderDeviceName}`);
     }
   }
+}
+
+async function checkAndApplyReassembledSettingsChunks(syncId) {
+  const entry = googleCloudIncomingSettingsChunks[syncId];
+  if (!entry || !entry.totalChunks || entry.totalChunks <= 0) return;
+  if (Object.keys(entry.parts).length < entry.totalChunks) return;
+
+  let combinedStr = '';
+  for (let i = 0; i < entry.totalChunks; i++) {
+    combinedStr += (entry.parts[i] || '');
+  }
+  const senderDeviceName = (entry.meta && entry.meta.senderDeviceName) ? entry.meta.senderDeviceName : 'Perangkat Lain';
+  const syncedAt = (entry.meta && entry.meta.syncedAt) ? entry.meta.syncedAt : new Date().toISOString();
+  delete googleCloudIncomingSettingsChunks[syncId];
+
+  try {
+    const parsedSettings = JSON.parse(combinedStr);
+    if (!parsedSettings || typeof parsedSettings !== 'object') return;
+    googleCloudLatestRemoteSettings = {
+      syncId,
+      syncedAt,
+      settings: parsedSettings.settings || [],
+      localSettings: parsedSettings.localSettings || {},
+      senderDeviceName
+    };
+    notifyGoogleCloudPullWaiters();
+
+    if (syncId === googleCloudLastAppliedSettingsSyncId) return;
+
+    if (googleSyncState.requirePinForSync !== false) {
+      stagePendingGoogleCloudUpdate({
+        settingsPayload: parsedSettings,
+        settingsSyncId: syncId,
+        senderDeviceName: senderDeviceName
+      });
+      return;
+    }
+
+    setPersistedLastAppliedSettingsSyncId(syncId);
+    await applySettingsSnapshotToIndexedDB(parsedSettings);
+    googleSyncState.lastSync = new Date().toISOString();
+    saveGoogleSyncState();
+    await loadStoreSettings();
+    if (typeof updateTopHeaderForActiveMenu === 'function' && typeof getCurrentActiveTabId === 'function') {
+      updateTopHeaderForActiveMenu(getCurrentActiveTabId());
+    }
+    await renderAll();
+  } catch (e) {}
+}
+
+async function checkAndApplyReassembledFullCloudChunks(syncId) {
+  const entry = googleCloudIncomingFullChunks[syncId];
+  if (!entry || !entry.totalChunks || entry.totalChunks <= 0) return;
+  if (Object.keys(entry.parts).length < entry.totalChunks) return;
+  let combinedStr = '';
+  for (let i = 0; i < entry.totalChunks; i++) {
+    combinedStr += (entry.parts[i] || '');
+  }
+  const senderDeviceName = (entry.meta && entry.meta.senderDeviceName) ? entry.meta.senderDeviceName : 'Perangkat Lain';
+  const syncedAt = (entry.meta && entry.meta.syncedAt) ? entry.meta.syncedAt : new Date().toISOString();
+  delete googleCloudIncomingFullChunks[syncId];
+
+  try {
+    const fullSnap = JSON.parse(combinedStr);
+    if (fullSnap && typeof fullSnap === 'object') {
+      googleCloudLatestRemoteFullSnap = {
+        syncId,
+        syncedAt,
+        fullSnap,
+        senderDeviceName
+      };
+      notifyGoogleCloudPullWaiters();
+
+      if (syncId === googleCloudLastAppliedFullSyncId) return;
+
+      if (googleSyncState.requirePinForSync !== false) {
+        stagePendingGoogleCloudUpdate({
+          fullSnap: fullSnap,
+          fullSyncId: syncId,
+          senderDeviceName: senderDeviceName
+        });
+        return;
+      }
+      setPersistedLastAppliedFullSyncId(syncId);
+      await applyDatabaseSnapshotToIndexedDB(fullSnap, googleSyncState.mergeMode || 'smart_sku', true);
+      googleSyncState.lastSync = new Date().toISOString();
+      saveGoogleSyncState();
+    }
+  } catch (e) {}
 }
 
 function announceGoogleAccountDevicePresence(requestPong = true) {
@@ -16214,52 +16651,77 @@ function announceGoogleAccountDevicePresence(requestPong = true) {
   updateProductTabGoogleSyncBarUI();
 }
 
-function pingGoogleAccountDevices() {
-  initGoogleAccountCloudRelay();
+async function pingGoogleAccountDevices() {
+  const connected = await ensureGoogleCloudMqttConnected(6000);
   announceGoogleAccountDevicePresence(true);
-  if (googleCloudMqttClient && googleCloudMqttClient.connected && googleCloudActiveTopicBase) {
+  if (connected && googleCloudMqttClient && googleCloudMqttClient.connected && googleCloudActiveTopicBase) {
     const myDevId = (typeof lanNetworkConfig !== 'undefined') ? lanNetworkConfig.deviceId : 'DEV-LOCAL';
     googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/request_sync`, JSON.stringify({
       senderDeviceId: myDevId,
       email: googleSyncState.email,
       timestamp: new Date().toISOString()
     }), { qos: 0 });
+    showCustomAlert(
+      'Memeriksa Perangkat di Akun Google',
+      `Sinyal sinkronisasi berhasil dikirim ke Cloud Relay untuk akun "${googleSyncState.email}".`,
+      'warning'
+    );
+  } else {
+    showCustomAlert(
+      'Cloud Relay Belum Terhubung',
+      'Perangkat belum tersambung ke server Cloud Relay. Periksa koneksi internet Anda lalu coba lagi.',
+      'danger'
+    );
   }
-  showCustomAlert(
-    'Memeriksa Perangkat di Akun Google',
-    `Sinyal sinkronisasi dikirim ke seluruh perangkat yang menggunakan akun Google "${googleSyncState.email}".`,
-    'warning'
-  );
+}
+
+function mqttPublishAsync(client, topic, payload, opts) {
+  return new Promise((resolve) => {
+    try {
+      client.publish(topic, payload, opts, () => resolve(true));
+    } catch (e) {
+      resolve(false);
+    }
+  });
 }
 
 async function publishRetainedGoogleCloudProductsSnapshot() {
-  if (!googleSyncState.connected || !googleSyncState.email) return;
-  initGoogleAccountCloudRelay();
-  if (!googleCloudMqttClient || !googleCloudMqttClient.connected || !googleCloudActiveTopicBase) return;
+  if (!googleSyncState.connected || !googleSyncState.email) return { ok: false, reason: 'not_connected' };
+  const isConnected = await ensureGoogleCloudMqttConnected(6500);
+  if (!isConnected || !googleCloudMqttClient || !googleCloudMqttClient.connected || !googleCloudActiveTopicBase) {
+    return { ok: false, reason: 'mqtt_offline' };
+  }
 
+  const client = googleCloudMqttClient;
+  const topicBase = googleCloudActiveTopicBase;
   const rawProducts = await getAll('products');
   const compactProducts = rawProducts.map(compactProductForCloud);
-  const totalChunks = Math.max(1, Math.ceil(compactProducts.length / GOOGLE_CLOUD_CHUNK_SIZE));
+  const prodChunks = chunkItemsByCharLimit(compactProducts, GOOGLE_CLOUD_MAX_CHUNK_CHARS);
+  const totalChunks = prodChunks.length;
   const syncId = 'GSYNC-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
   const myDevId = (typeof lanNetworkConfig !== 'undefined') ? lanNetworkConfig.deviceId : 'DEV-LOCAL';
   const myDevName = (typeof lanNetworkConfig !== 'undefined') ? lanNetworkConfig.deviceName : 'Kasir POS';
 
   setPersistedLastAppliedSyncId(syncId);
 
+  // 1. Publish Data Barang (dipecah aman <= 14 KB per chunk)
   for (let i = 0; i < totalChunks; i++) {
-    const slice = compactProducts.slice(i * GOOGLE_CLOUD_CHUNK_SIZE, (i + 1) * GOOGLE_CLOUD_CHUNK_SIZE);
     const chunkPayload = JSON.stringify({
       syncId: syncId,
       chunkIndex: i,
       totalChunks: totalChunks,
       senderDeviceId: myDevId,
       senderDeviceName: myDevName,
-      items: slice
+      items: prodChunks[i]
     });
-    try {
-      googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/prod_chunk/${i}`, chunkPayload, { qos: 0, retain: true });
-    } catch (e) {}
+    await mqttPublishAsync(client, `${topicBase}/prod_chunk/${i}`, chunkPayload, { qos: 1, retain: true });
+    if (totalChunks > 4) await new Promise(r => setTimeout(r, 20));
   }
+  // Bersihkan sisa chunk retained lama jika jumlah chunk berkurang
+  for (let j = totalChunks; j < googleCloudLastPublishedProdChunks; j++) {
+    await mqttPublishAsync(client, `${topicBase}/prod_chunk/${j}`, '', { qos: 0, retain: true });
+  }
+  googleCloudLastPublishedProdChunks = totalChunks;
 
   const manifestPayload = JSON.stringify({
     syncId: syncId,
@@ -16273,75 +16735,196 @@ async function publishRetainedGoogleCloudProductsSnapshot() {
     productsClearedAt: googleSyncState.productsClearedAt || null,
     deletedProductSkus: googleSyncState.deletedProductSkus || []
   });
+  await mqttPublishAsync(client, `${topicBase}/manifest`, manifestPayload, { qos: 1, retain: true });
+
+  // 2. Publish Pengaturan Toko secara terpisah & cepat (settings_chunk + settings_manifest)
   try {
-    googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/manifest`, manifestPayload, { qos: 0, retain: true });
+    const allSettings = (await getAll('settings')).filter(s => s && s.key !== 'deviceLicenseRecord');
+    const settingsBundle = {
+      settings: allSettings,
+      localSettings: collectLocalSettingsForSync(),
+      syncedAt: new Date().toISOString()
+    };
+    const settingsStr = JSON.stringify(settingsBundle);
+    const setTotal = Math.max(1, Math.ceil(settingsStr.length / GOOGLE_CLOUD_MAX_CHUNK_CHARS));
+    const setSyncId = 'GSET-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    setPersistedLastAppliedSettingsSyncId(setSyncId);
+
+    for (let i = 0; i < setTotal; i++) {
+      await mqttPublishAsync(client, `${topicBase}/settings_chunk/${i}`, JSON.stringify({
+        syncId: setSyncId,
+        chunkIndex: i,
+        totalChunks: setTotal,
+        senderDeviceId: myDevId,
+        chunkStr: settingsStr.slice(i * GOOGLE_CLOUD_MAX_CHUNK_CHARS, (i + 1) * GOOGLE_CLOUD_MAX_CHUNK_CHARS)
+      }), { qos: 1, retain: true });
+    }
+    for (let j = setTotal; j < googleCloudLastPublishedSettingsChunks; j++) {
+      await mqttPublishAsync(client, `${topicBase}/settings_chunk/${j}`, '', { qos: 0, retain: true });
+    }
+    googleCloudLastPublishedSettingsChunks = setTotal;
+
+    await mqttPublishAsync(client, `${topicBase}/settings_manifest`, JSON.stringify({
+      syncId: setSyncId,
+      syncedAt: new Date().toISOString(),
+      senderDeviceId: myDevId,
+      senderDeviceName: myDevName,
+      totalChunks: setTotal
+    }), { qos: 1, retain: true });
   } catch (e) {}
 
-  // Publish seluruh menu lain (Transaksi, Pengaturan, Pelanggan, Hutang/Piutang, dll.) via Cloud Relay
+  // 3. Publish menu lain (Transaksi, Pelanggan, Supplier, Pembelian, Hutang/Piutang, dll.)
   try {
     const fullSnap = await collectFullDatabaseSnapshot(true);
     delete fullSnap.products;
+    delete fullSnap.settings;
+    delete fullSnap.localSettings;
     const fullStr = JSON.stringify(fullSnap);
-    const STR_CHUNK = 48000;
-    const fullTotal = Math.max(1, Math.ceil(fullStr.length / STR_CHUNK));
+    const fullTotal = Math.max(1, Math.ceil(fullStr.length / GOOGLE_CLOUD_MAX_CHUNK_CHARS));
     const fullSyncId = 'GFULL-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
     setPersistedLastAppliedFullSyncId(fullSyncId);
+
     for (let i = 0; i < fullTotal; i++) {
-      googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/full_chunk/${i}`, JSON.stringify({
+      await mqttPublishAsync(client, `${topicBase}/full_chunk/${i}`, JSON.stringify({
         syncId: fullSyncId,
         chunkIndex: i,
         totalChunks: fullTotal,
         senderDeviceId: myDevId,
-        chunkStr: fullStr.slice(i * STR_CHUNK, (i + 1) * STR_CHUNK)
-      }), { qos: 0, retain: true });
+        chunkStr: fullStr.slice(i * GOOGLE_CLOUD_MAX_CHUNK_CHARS, (i + 1) * GOOGLE_CLOUD_MAX_CHUNK_CHARS)
+      }), { qos: 1, retain: true });
+      if (fullTotal > 4) await new Promise(r => setTimeout(r, 20));
     }
-    googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/full_manifest`, JSON.stringify({
+    for (let j = fullTotal; j < googleCloudLastPublishedFullChunks; j++) {
+      await mqttPublishAsync(client, `${topicBase}/full_chunk/${j}`, '', { qos: 0, retain: true });
+    }
+    googleCloudLastPublishedFullChunks = fullTotal;
+
+    await mqttPublishAsync(client, `${topicBase}/full_manifest`, JSON.stringify({
       syncId: fullSyncId,
       syncedAt: new Date().toISOString(),
       senderDeviceId: myDevId,
       senderDeviceName: myDevName,
       totalChunks: fullTotal
-    }), { qos: 0, retain: true });
+    }), { qos: 1, retain: true });
   } catch (e) {}
+
+  return { ok: true, totalProducts: compactProducts.length, totalChunks };
 }
 
-let googleCloudLastAppliedFullSyncId = getPersistedLastAppliedFullSyncId();
-const googleCloudIncomingFullChunks = {};
-
-async function checkAndApplyReassembledFullCloudChunks(syncId) {
-  const entry = googleCloudIncomingFullChunks[syncId];
-  if (!entry || !entry.totalChunks || entry.totalChunks <= 0) return;
-  if (Object.keys(entry.parts).length < entry.totalChunks) return;
-  let combinedStr = '';
-  for (let i = 0; i < entry.totalChunks; i++) {
-    combinedStr += (entry.parts[i] || '');
-  }
-  const metaSyncedAt = entry.meta && entry.meta.syncedAt ? Date.parse(entry.meta.syncedAt) || 0 : 0;
-  const senderDeviceName = (entry.meta && entry.meta.senderDeviceName) ? entry.meta.senderDeviceName : 'Perangkat Lain';
-  delete googleCloudIncomingFullChunks[syncId];
-
-  if (metaSyncedAt > 0 && getLocalProductsLastSavedAt() > 0 && metaSyncedAt < getLocalProductsLastSavedAt()) {
-    setPersistedLastAppliedFullSyncId(syncId);
-    return;
+async function pullSnapshotFromGoogleCloudRelay(timeoutMs = 4500) {
+  const isConnected = await ensureGoogleCloudMqttConnected(5500);
+  if (!isConnected || !googleCloudMqttClient || !googleCloudMqttClient.connected || !googleCloudActiveTopicBase) {
+    return null;
   }
 
+  // Kirim request_sync ke perangkat lain yang sedang online di akun Google ini
+  const myDevId = (typeof lanNetworkConfig !== 'undefined') ? lanNetworkConfig.deviceId : 'DEV-LOCAL';
   try {
-    const fullSnap = JSON.parse(combinedStr);
-    if (fullSnap && typeof fullSnap === 'object') {
-      if (googleSyncState.requirePinForSync !== false) {
-        stagePendingGoogleCloudUpdate({
-          fullSnap: fullSnap,
-          fullSyncId: syncId,
-          senderDeviceName: senderDeviceName
-        });
-        return;
-      }
-      setPersistedLastAppliedFullSyncId(syncId);
-      await applyDatabaseSnapshotToIndexedDB(fullSnap, googleSyncState.mergeMode || 'smart_sku');
-      googleSyncState.lastSync = new Date().toISOString();
-      saveGoogleSyncState();
-    }
+    googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/request_sync`, JSON.stringify({
+      senderDeviceId: myDevId,
+      email: googleSyncState.email,
+      timestamp: new Date().toISOString()
+    }), { qos: 0 });
   } catch (e) {}
+
+  // Tunggu sebentar agar pesan retained (manifest + prod_chunk + settings_manifest + full_manifest) selesai dirakit
+  await new Promise((resolve) => {
+    let done = false;
+    let settleTimer = null;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(maxTimer);
+      clearTimeout(settleTimer);
+      googleCloudPullWaiters = googleCloudPullWaiters.filter(w => w !== onData);
+      resolve(true);
+    };
+    const onData = () => {
+      // Setelah paket pertama lengkap, beri waktu singkat 900ms agar paket pengaturan/full ikut selesai
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(finish, 900);
+    };
+    googleCloudPullWaiters.push(onData);
+    if (googleCloudLatestRemoteProducts || googleCloudLatestRemoteSettings || googleCloudLatestRemoteFullSnap) {
+      settleTimer = setTimeout(finish, 1100);
+    }
+    const maxTimer = setTimeout(finish, timeoutMs);
+  });
+
+  if (!googleCloudLatestRemoteProducts && !googleCloudLatestRemoteSettings && !googleCloudLatestRemoteFullSnap) {
+    return null;
+  }
+
+  return {
+    sourceName: 'Cloud Relay Lintas Perangkat (Akun Google)',
+    products: googleCloudLatestRemoteProducts ? googleCloudLatestRemoteProducts.products : null,
+    deletedProductSkus: googleCloudLatestRemoteProducts ? googleCloudLatestRemoteProducts.deletedProductSkus : [],
+    replaceProducts: googleCloudLatestRemoteProducts ? googleCloudLatestRemoteProducts.replaceProducts : false,
+    productsClearedAt: googleCloudLatestRemoteProducts ? googleCloudLatestRemoteProducts.productsClearedAt : null,
+    syncId: googleCloudLatestRemoteProducts ? googleCloudLatestRemoteProducts.syncId : '',
+    settingsPayload: googleCloudLatestRemoteSettings
+      ? { settings: googleCloudLatestRemoteSettings.settings, localSettings: googleCloudLatestRemoteSettings.localSettings }
+      : null,
+    settingsSyncId: googleCloudLatestRemoteSettings ? googleCloudLatestRemoteSettings.syncId : '',
+    fullSnap: googleCloudLatestRemoteFullSnap ? googleCloudLatestRemoteFullSnap.fullSnap : null,
+    fullSyncId: googleCloudLatestRemoteFullSnap ? googleCloudLatestRemoteFullSnap.syncId : '',
+    senderDeviceName: (googleCloudLatestRemoteProducts && googleCloudLatestRemoteProducts.senderDeviceName)
+      || (googleCloudLatestRemoteSettings && googleCloudLatestRemoteSettings.senderDeviceName)
+      || 'Perangkat Lain'
+  };
+}
+
+async function fetchBestRemoteGoogleCloudData(relayTimeoutMs = 4500) {
+  // 1. Prioritas 1: Google Apps Script Webhook (Google Drive JSON permanen) jika dikonfigurasi
+  if (googleSyncState.webhookUrl) {
+    try {
+      const cleanUrl = 'https://' + googleSyncState.webhookUrl.replace(/^https?:\/\//i, '');
+      const sep = cleanUrl.includes('?') ? '&' : '?';
+      const targetEndpoint = `${cleanUrl}${sep}action=PULL_SYNC&account=${encodeURIComponent(googleSyncState.email)}&_t=${Date.now()}`;
+      const resp = await fetch(targetEndpoint, { method: 'GET', redirect: 'follow' });
+      if (resp.ok) {
+        const json = await resp.json();
+        const extracted = (json && json.data && (Array.isArray(json.data.products) || Array.isArray(json.data.settings))) ? json.data : json;
+        if (extracted && (Array.isArray(extracted.products) || Array.isArray(extracted.settings))) {
+          return {
+            sourceName: 'Google Drive (Apps Script Cloud)',
+            products: extracted.products || null,
+            deletedProductSkus: extracted.deletedProductSkus || [],
+            settingsPayload: { settings: extracted.settings || [], localSettings: extracted.localSettings || {} },
+            fullSnap: extracted
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Webhook pull warning:', e);
+    }
+  }
+
+  // 2. Prioritas 2: Official Google Drive REST API v3 jika OAuth aktif
+  if (googleSyncState.accessToken) {
+    try {
+      const driveData = await downloadSnapshotFromGoogleDriveRest();
+      if (driveData && (Array.isArray(driveData.products) || Array.isArray(driveData.settings))) {
+        return {
+          sourceName: 'Google Drive API Resmi',
+          products: driveData.products || null,
+          deletedProductSkus: driveData.deletedProductSkus || [],
+          settingsPayload: { settings: driveData.settings || [], localSettings: driveData.localSettings || {} },
+          fullSnap: driveData
+        };
+      }
+    } catch (e) {
+      console.warn('Google Drive REST pull warning:', e);
+    }
+  }
+
+  // 3. Prioritas 3: Cloud Relay Lintas Perangkat (MQTT Retained Chunks — bekerja langsung hanya dengan Email Google!)
+  const relayData = await pullSnapshotFromGoogleCloudRelay(relayTimeoutMs);
+  if (relayData) {
+    return relayData;
+  }
+
+  return null;
 }
 
 function openClearProductsWithAuthModal() {
@@ -16407,7 +16990,6 @@ async function confirmClearProductsWithAccountAuth(e) {
 
 function broadcastGoogleAccountRealtimeDelta(opType, storeName, payload) {
   if (!googleSyncState.connected || !googleSyncState.email || !googleSyncState.autoSync) return;
-  initGoogleAccountCloudRelay();
   if (!googleCloudMqttClient || !googleCloudMqttClient.connected || !googleCloudActiveTopicBase) return;
 
   const myDevId = (typeof lanNetworkConfig !== 'undefined') ? lanNetworkConfig.deviceId : 'DEV-LOCAL';
@@ -16429,7 +17011,7 @@ function broadcastGoogleAccountRealtimeDelta(opType, storeName, payload) {
   } catch (e) {}
 }
 
-/* ---- Push & Pull Specific to Products (Data Barang) or Full Database ---- */
+/* ---- Push & Pull Specific to Products (Data Barang) or Full Database & Pengaturan ---- */
 async function syncProductsOnlyToGoogleAccount(showFeedback = true) {
   if (!googleSyncState.connected || !googleSyncState.email) {
     openGoogleSyncModal();
@@ -16437,19 +17019,27 @@ async function syncProductsOnlyToGoogleAccount(showFeedback = true) {
   }
   const approved = await requestGoogleSyncPinVerification(
     'Verifikasi PIN Simpan Barang ke Google',
-    `Masukkan PIN Pengguna untuk mengirim Data Barang terbaru dari perangkat ini ke Akun Google "${googleSyncState.email}".`
+    `Masukkan PIN Pengguna untuk mengirim Data Barang & Pengaturan terbaru dari perangkat ini ke Akun Google "${googleSyncState.email}".`
   );
   if (!approved) return;
 
-  await syncPushToGoogleAccount(false, true);
+  const res = await syncPushToGoogleAccount(false, true);
   const products = await getAll('products');
   if (showFeedback) {
     await renderGoogleSyncModalUI();
-    showCustomAlert(
-      'Data Barang Tersinkron ke Akun Google!',
-      `Berhasil menyimpan & menyinkronkan ${products.length} Data Barang (SKU, Harga Multi-Satuan, Stok, No. Rak & Masa Expired) ke akun Google "${googleSyncState.email}" setelah verifikasi PIN.`,
-      'warning'
-    );
+    if (res && res.cloudDelivered) {
+      showCustomAlert(
+        'Data Barang & Pengaturan Tersinkron ke Cloud!',
+        `Berhasil mengirim ${products.length} Data Barang & Pengaturan ke Akun Google "${googleSyncState.email}" melalui ${res.channels.join(' + ')}. Sekarang buka perangkat lain dengan email yang sama lalu klik "Tarik Barang dari Google" atau "Verifikasi PIN & Terapkan".`,
+        'warning'
+      );
+    } else {
+      showCustomAlert(
+        'Tersimpan Lokal (Cloud Belum Terjangkau)',
+        `${products.length} Data Barang tersimpan di perangkat ini, namun belum terkirim ke perangkat lain karena koneksi Cloud Relay / internet belum aktif. Periksa koneksi internet Anda lalu coba klik "Simpan Barang ke Google" kembali.`,
+        'danger'
+      );
+    }
   }
 }
 
@@ -16460,52 +17050,45 @@ async function syncPullProductsFromGoogleAccount(showFeedback = true) {
   }
   const approved = await requestGoogleSyncPinVerification(
     'Verifikasi PIN Tarik Barang dari Google',
-    `Masukkan PIN Pengguna untuk menarik Data Barang dari Akun Google "${googleSyncState.email}". Data barang yang sudah tersimpan di perangkat ini tetap terlindungi.`
+    `Masukkan PIN Pengguna untuk menarik Data Barang & Pengaturan terbaru dari Akun Google "${googleSyncState.email}".`
   );
   if (!approved) return;
 
-  if (googleCloudMqttClient && googleCloudMqttClient.connected && googleCloudActiveTopicBase) {
-    const myDevId = (typeof lanNetworkConfig !== 'undefined') ? lanNetworkConfig.deviceId : 'DEV-LOCAL';
-    try {
-      googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/request_sync`, JSON.stringify({
-        senderDeviceId: myDevId,
-        email: googleSyncState.email,
-        timestamp: new Date().toISOString()
-      }), { qos: 0 });
-    } catch (e) {}
-  }
   await syncPullFromGoogleAccount(showFeedback, true);
 }
 
 async function syncPushToGoogleAccount(showFeedback = false, skipPinCheck = false) {
-  if (!googleSyncState.connected || !googleSyncState.email) return;
+  if (!googleSyncState.connected || !googleSyncState.email) return { cloudDelivered: false, channels: [] };
   if (!skipPinCheck) {
     const approved = await requestGoogleSyncPinVerification(
       'Verifikasi PIN Push Data ke Google',
-      `Masukkan PIN Pengguna untuk mengunggah seluruh data terbaru dari perangkat ini ke Akun Google "${googleSyncState.email}".`
+      `Masukkan PIN Pengguna untuk mengunggah Data Barang, Pengaturan & seluruh menu dari perangkat ini ke Akun Google "${googleSyncState.email}".`
     );
-    if (!approved) return;
+    if (!approved) return { cloudDelivered: false, channels: [] };
   }
 
   const snapshot = await collectFullDatabaseSnapshot(true);
-  const vaultKey = getGoogleVaultStorageKey(googleSyncState.email);
+  const channels = [];
 
-  // 1. Simpan snapshot ke IndexedDB 'cloud_vault' (bebas batas kuota 5MB localStorage)
+  // 1. Simpan snapshot ke IndexedDB 'cloud_vault' lokal
   try {
     await saveLocalGoogleVault(googleSyncState.email, snapshot);
   } catch (e) {
     console.warn('IndexedDB cloud_vault save warning:', e);
   }
 
-  // 2. Publish Retained Product Chunks to Cross-Device Google Account Cloud Relay
+  // 2. Publish Retained Chunks (Data Barang + Pengaturan + Menu Lain) ke Cloud Relay Lintas Perangkat
   try {
-    await publishRetainedGoogleCloudProductsSnapshot();
+    const relayRes = await publishRetainedGoogleCloudProductsSnapshot();
+    if (relayRes && relayRes.ok) {
+      channels.push('Cloud Relay Lintas Perangkat');
+    }
   } catch (e) {}
 
-  // 3. Push to Google Apps Script (Google Drive JSON & Spreadsheet) if configured
+  // 3. Push ke Google Apps Script (Google Drive JSON) jika dikonfigurasi
   if (googleSyncState.webhookUrl) {
     try {
-      await fetch(googleSyncState.webhookUrl, {
+      const resp = await fetch(googleSyncState.webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
@@ -16515,31 +17098,48 @@ async function syncPushToGoogleAccount(showFeedback = false, skipPinCheck = fals
           data: snapshot
         })
       });
+      if (resp && (resp.ok || resp.type === 'opaque')) {
+        channels.push('Google Drive Apps Script');
+      }
     } catch (e) {
       console.warn('Webhook push warning:', e);
     }
   }
 
-  // 4. Push to Official Google Drive REST API v3 (OAuth 2.0) if accessToken is active
+  // 4. Push ke Official Google Drive REST API v3 (OAuth 2.0) jika accessToken aktif
   if (googleSyncState.accessToken) {
     try {
       await uploadSnapshotToGoogleDriveRest(snapshot);
+      channels.push('Google Drive API Resmi');
     } catch (e) {
       console.warn('Google Drive REST upload warning:', e);
     }
   }
 
-  hasUnsyncedLocalGoogleChanges = false;
-  googleSyncState.lastSync = new Date().toISOString();
-  saveGoogleSyncState();
+  const cloudDelivered = channels.length > 0;
+  if (cloudDelivered) {
+    hasUnsyncedLocalGoogleChanges = false;
+    googleSyncState.lastSync = new Date().toISOString();
+    saveGoogleSyncState();
+  }
+
   if (showFeedback) {
     await renderGoogleSyncModalUI();
-    showCustomAlert(
-      'Sinkronisasi ke Akun Google Selesai',
-      `Berhasil menyimpan ${snapshot.products.length} Data Barang, ${snapshot.transactions.length} Transaksi, dan pengaturan toko ke Cloud Akun Google (${googleSyncState.email}).`,
-      'warning'
-    );
+    if (cloudDelivered) {
+      showCustomAlert(
+        'Sinkronisasi ke Akun Google Selesai!',
+        `Berhasil mengirim ${snapshot.products.length} Data Barang, ${snapshot.settings.length} Pengaturan Toko, dan ${snapshot.transactions.length} Transaksi ke Akun Google (${googleSyncState.email}) via ${channels.join(' + ')}.`,
+        'warning'
+      );
+    } else {
+      showCustomAlert(
+        'Gagal Mengirim ke Cloud (Perangkat Offline)',
+        'Data hanya tersimpan lokal karena koneksi ke Cloud Relay / Google Drive gagal. Pastikan koneksi internet aktif lalu klik "Push Semua" kembali.',
+        'danger'
+      );
+    }
   }
+  return { cloudDelivered, channels };
 }
 
 async function syncPullFromGoogleAccount(showFeedback = false, skipPinCheck = false) {
@@ -16547,92 +17147,85 @@ async function syncPullFromGoogleAccount(showFeedback = false, skipPinCheck = fa
   if (!skipPinCheck) {
     const approved = await requestGoogleSyncPinVerification(
       'Verifikasi PIN Tarik Data dari Google',
-      `Masukkan PIN Pengguna untuk menarik data dari Akun Google "${googleSyncState.email}". Data barang yang sudah disimpan di perangkat ini dijaga agar tidak kembali ke data awal.`
+      `Masukkan PIN Pengguna untuk menarik Data Barang, Pengaturan & menu lain dari Akun Google "${googleSyncState.email}".`
     );
     if (!approved) return;
   }
 
-  let snapshot = null;
-  let sourceName = 'Cloud Vault Akun Google';
+  // 1. Tarik dari sumber lintas perangkat (Google Apps Script -> Google Drive API -> Cloud Relay MQTT!)
+  let remoteData = await fetchBestRemoteGoogleCloudData(5000);
 
-  // 1. Try pulling from Google Apps Script (Google Drive JSON) first if configured
-  if (googleSyncState.webhookUrl) {
-    try {
-      const cleanUrl = 'https://' + googleSyncState.webhookUrl.replace(/^https?:\/\//i, '');
-      const sep = cleanUrl.includes('?') ? '&' : '?';
-      const targetEndpoint = `${cleanUrl}${sep}action=PULL_SYNC&account=${encodeURIComponent(googleSyncState.email)}&_t=${Date.now()}`;
-      const resp = await fetch(targetEndpoint, { method: 'GET', redirect: 'follow' });
-      if (resp.ok) {
-        const json = await resp.json();
-        const extracted = (json && json.data && Array.isArray(json.data.products)) ? json.data : json;
-        if (extracted && Array.isArray(extracted.products)) {
-          snapshot = extracted;
-          sourceName = 'Google Drive (Apps Script Cloud)';
-        }
-      }
-    } catch (e) {
-      console.warn('Webhook pull warning:', e);
-    }
-  }
-
-  // 2. Try pulling from Official Google Drive REST API v3 if accessToken is active
-  if (!snapshot && googleSyncState.accessToken) {
-    try {
-      const driveData = await downloadSnapshotFromGoogleDriveRest();
-      if (driveData && Array.isArray(driveData.products)) {
-        snapshot = driveData;
-        sourceName = 'Google Drive API Resmi';
-      }
-    } catch (e) {
-      console.warn('Google Drive REST pull warning:', e);
-    }
-  }
-
-  // 3. Fallback ke IndexedDB Local Vault (dengan migrasi otomatis dari localStorage lama jika ada)
-  if (!snapshot) {
+  // 2. Fallback terakhir ke IndexedDB Vault lokal hanya jika sumber remote kosong
+  let sourceName = remoteData ? remoteData.sourceName : 'Cloud Vault Lokal';
+  if (!remoteData) {
     try {
       const parsedVault = await loadLocalGoogleVault(googleSyncState.email);
-      if (parsedVault) {
-        const vaultTime = parsedVault && parsedVault.syncedAt ? (Date.parse(parsedVault.syncedAt) || 0) : 0;
+      if (parsedVault && (Array.isArray(parsedVault.products) || Array.isArray(parsedVault.settings))) {
+        const vaultTime = parsedVault.syncedAt ? (Date.parse(parsedVault.syncedAt) || 0) : 0;
         const localSavedAt = getLocalProductsLastSavedAt();
         const existingLocalProds = await getAll('products');
         const isStaleVault = existingLocalProds.length > 0 && localSavedAt > 0 && (vaultTime === 0 || vaultTime < localSavedAt);
         if (!isStaleVault) {
-          snapshot = parsedVault;
-          sourceName = 'Cloud Relay & IndexedDB Vault Akun Google';
-        } else {
-          console.info('Stale IndexedDB Google Vault ignored to protect newer IndexedDB device products.');
+          remoteData = {
+            sourceName: 'IndexedDB Vault Lokal',
+            products: parsedVault.products || null,
+            deletedProductSkus: parsedVault.deletedProductSkus || [],
+            settingsPayload: { settings: parsedVault.settings || [], localSettings: parsedVault.localSettings || {} },
+            fullSnap: parsedVault
+          };
+          sourceName = remoteData.sourceName;
         }
       }
     } catch (e) {}
   }
 
-  if (snapshot) {
-    await applyDatabaseSnapshotToIndexedDB(snapshot, googleSyncState.mergeMode || 'smart_sku');
+  if (remoteData) {
+    isApplyingExternalSync = true;
+    try {
+      if (Array.isArray(remoteData.products) && remoteData.products.length > 0) {
+        await mergeProductsToIndexedDB(remoteData.products, googleSyncState.mergeMode || 'smart_sku', remoteData.deletedProductSkus || [], true);
+      }
+      if (remoteData.settingsPayload) {
+        await applySettingsSnapshotToIndexedDB(remoteData.settingsPayload);
+      }
+      if (remoteData.fullSnap) {
+        await applyDatabaseSnapshotToIndexedDB(remoteData.fullSnap, googleSyncState.mergeMode || 'smart_sku', true);
+      }
+      if (remoteData.syncId) setPersistedLastAppliedSyncId(remoteData.syncId);
+      if (remoteData.settingsSyncId) setPersistedLastAppliedSettingsSyncId(remoteData.settingsSyncId);
+      if (remoteData.fullSyncId) setPersistedLastAppliedFullSyncId(remoteData.fullSyncId);
+      pendingGoogleCloudSync = null;
+      updatePendingGoogleCloudSyncUI();
+    } finally {
+      isApplyingExternalSync = false;
+    }
+
     googleSyncState.lastSync = new Date().toISOString();
     saveGoogleSyncState();
+    await loadStoreSettings();
+    if (typeof updateTopHeaderForActiveMenu === 'function' && typeof getCurrentActiveTabId === 'function') {
+      updateTopHeaderForActiveMenu(getCurrentActiveTabId());
+    }
+    await populatePosCategories();
+    await populateProductCategoryFilter();
+    await renderAll();
+
     const currentProducts = await getAll('products');
     if (showFeedback) {
       await renderGoogleSyncModalUI();
       showCustomAlert(
-        'Sinkronisasi Akun Google Selesai',
-        `Berhasil menyinkronkan ${currentProducts.length} Data Barang dari ${sourceName} (${googleSyncState.email}). Data barang yang sudah tersimpan di perangkat ini tetap aman.`,
+        'Sinkronisasi Akun Google Berhasil!',
+        `Berhasil menarik & menerapkan ${currentProducts.length} Data Barang beserta Pengaturan Toko dari ${sourceName} (${googleSyncState.email}).`,
         'warning'
       );
     }
   } else if (showFeedback) {
-    const currentProducts = await getAll('products');
-    if (currentProducts.length > 0) {
-      await syncPushToGoogleAccount(false, true);
-      await renderGoogleSyncModalUI();
-      showCustomAlert(
-        'Data Perangkat Dipertahankan & Disimpan ke Cloud',
-        `Data barang lokal Anda (${currentProducts.length} produk) lebih baru daripada cadangan lama, sehingga tidak ditimpa dan langsung diperbarui ke Cloud Akun Google ${googleSyncState.email}.`,
-        'warning'
-      );
-    } else {
-      showCustomAlert('Belum Ada Data Cloud', `Belum ditemukan cadangan di akun ${googleSyncState.email}. Klik "Simpan Barang ke Google" terlebih dahulu.`, 'warning');
-    }
+    await renderGoogleSyncModalUI();
+    showCustomAlert(
+      'Belum Ada Data Cloud Ditemukan',
+      `Belum ditemukan Data Barang / Pengaturan di Cloud untuk akun "${googleSyncState.email}" (dan PIN Ruang yang sama). Pastikan di perangkat sumber Anda sudah klik "Simpan Barang ke Google" atau "Push Semua" dalam keadaan online.`,
+      'warning'
+    );
   }
 }
 
@@ -16642,7 +17235,16 @@ async function disconnectGoogleAccount() {
     googleSyncState.email = '';
     googleSyncState.name = '';
     googleSyncState.accessToken = '';
+    googleCloudLatestRemoteProducts = null;
+    googleCloudLatestRemoteSettings = null;
+    googleCloudLatestRemoteFullSnap = null;
+    pendingGoogleCloudSync = null;
+    updatePendingGoogleCloudSyncUI();
     try { localStorage.removeItem('aladinpay_google_accounts_history'); } catch (e) {}
+    if (googleCloudConnectFailoverTimer) {
+      clearTimeout(googleCloudConnectFailoverTimer);
+      googleCloudConnectFailoverTimer = null;
+    }
     if (googleCloudMqttClient) {
       try { googleCloudMqttClient.end(true); } catch (e) {}
       googleCloudMqttClient = null;
@@ -16773,8 +17375,8 @@ async function downloadSnapshotFromGoogleDriveRest() {
 function getReadyToUseGoogleAppsScriptCode() {
   return `/**
  * ALADINPAY / HIDAYAT POS - GOOGLE DRIVE & SPREADSHEET CLOUD SYNC (LINTAS PERANGKAT)
- * Menyimpan seluruh Data Barang (Produk, Barcode Multi-Satuan, Stok, No. Rak, Expired)
- * dan Transaksi secara otomatis di Google Drive akun Google Anda.
+ * Menyimpan seluruh Data Barang (Produk, Barcode Multi-Satuan, Stok, No. Rak, Expired),
+ * Pengaturan Toko, dan Transaksi secara permanen di Google Drive akun Google Anda.
  */
 const FOLDER_NAME = 'AladinPay_Cloud_Database';
 
@@ -16823,7 +17425,6 @@ function doPost(e) {
 
     let finalSnapshot = incomingData;
 
-    // Smart Merge Products by Barcode/SKU if existing cloud file exists
     if (files.hasNext() && payload.mergeMode !== 'overwrite' && Array.isArray(incomingData.products)) {
       const existingFile = files.next();
       try {
@@ -16886,10 +17487,10 @@ async function testGoogleAppsScriptWebhook() {
   googleSyncState.webhookUrl = url;
   saveGoogleSyncState();
   try {
-    await syncPushToGoogleAccount(false);
+    await syncPushToGoogleAccount(false, true);
     showCustomAlert(
       'Koneksi Google Drive Apps Script Berhasil!',
-      `URL Webhook Google Apps Script aktif dan Data Barang telah disinkronkan ke Google Drive akun ${googleSyncState.email || 'Anda'}.`,
+      `URL Webhook Google Apps Script aktif dan Data Barang serta Pengaturan telah disinkronkan ke Google Drive akun ${googleSyncState.email || 'Anda'}.`,
       'warning'
     );
   } catch (err) {
