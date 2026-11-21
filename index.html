@@ -2,6 +2,7 @@
 <html lang="id" data-buyer-edition="true"><head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" id="appColorSchemeMeta" content="light only">
     <title>Hidayat - POS &amp; Kasir Toko Kelontong</title>
   <link rel="icon" id="appFavicon" type="image/png" href="">
   <link rel="shortcut icon" id="appShortcutFavicon" type="image/png" href="">
@@ -11,6 +12,7 @@
   <link rel="stylesheet" id="faExternalCss" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all';document.documentElement.classList.remove('offline-no-fa');" onerror="document.documentElement.classList.add('offline-no-fa');">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <!-- Library opsional dimuat dengan defer agar tidak menahan render halaman saat dibuka offline dari Drive lokal -->
+  <script>window.tailwind = window.tailwind || {}; window.tailwind.config = { darkMode: "class" };</script>
   <script src="https://cdn.tailwindcss.com/3.4.17" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
   <script src="https://unpkg.com/html5-qrcode" defer></script>
@@ -348,6 +350,12 @@
   .bg-slate-800 { background-color: #1e293b; }
 
   /* ================= 2. KONTRAS WARNA MODE TERANG (SIANG - DEFAULT) ================= */
+  html:not(.dark) {
+    color-scheme: light only !important;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
   html:not(.dark) body {
     background-color: #f1f5f9;
     color: #0f172a;
@@ -716,6 +724,10 @@
         <!-- Contextual Quick Actions for Active Sidebar Menu + Toggle Default Header Menu -->
         <div id="headerActiveMenuQuickActions" class="flex items-center flex-wrap gap-1.5">
           <div id="headerDynamicActionButtons" class="flex items-center flex-wrap gap-1.5"></div>
+          <button type="button" id="btnQuickToggleDarkMode" onclick="toggleDarkMode()" title="Mode Terang Aktif (Klik untuk ganti ke Mode Gelap secara manual)" class="bg-white/15 hover:bg-white/25 text-white px-2.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 border border-white/25 shadow-sm transition">
+            <i id="iconQuickToggleDarkMode" class="fa-solid fa-moon text-amber-200"></i>
+            <span id="textQuickToggleDarkMode" class="hidden sm:inline text-[11px]">Mode Terang</span>
+          </button>
           <button type="button" id="btnToggleDefaultHeaderMenu" onclick="toggleDefaultHeaderMenuVisibility()" title="Tampilkan / Sembunyikan Menu Utilitas Header" class="bg-white/15 hover:bg-white/25 text-white px-2.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 border border-white/25 shadow-sm transition">
             <i id="iconToggleDefaultHeaderMenu" class="fa-solid fa-sliders text-amber-300"></i>
             <span id="textToggleDefaultHeaderMenu" class="hidden md:inline text-[11px]">Menu Utilitas</span>
@@ -12887,28 +12899,51 @@
   
 let dashChart=null, scannerInstance=null;
 function applyThemeModeUI(isDark) {
-  if (isDark) {
+  const darkOn = Boolean(isDark);
+  if (darkOn) {
     document.documentElement.classList.add('dark');
+    document.documentElement.style.colorScheme = 'dark';
   } else {
     document.documentElement.classList.remove('dark');
+    document.documentElement.style.colorScheme = 'light only';
+  }
+  const csMeta = document.getElementById('appColorSchemeMeta');
+  if (csMeta) {
+    csMeta.setAttribute('content', darkOn ? 'dark' : 'light only');
   }
   const icon = document.getElementById('iconToggleDarkMode');
   const btn = document.getElementById('btnToggleDarkMode');
   if (icon) {
-    icon.className = isDark ? 'fa-solid fa-sun text-amber-300' : 'fa-solid fa-moon text-white';
+    icon.className = darkOn ? 'fa-solid fa-sun text-amber-300' : 'fa-solid fa-moon text-white';
   }
   if (btn) {
-    btn.title = isDark ? 'Mode Gelap Aktif (Klik untuk Mode Terang)' : 'Mode Terang Aktif (Klik untuk Mode Gelap)';
+    btn.title = darkOn ? 'Mode Gelap Manual Aktif (Klik untuk Mode Terang)' : 'Mode Terang Aktif (Klik untuk Mode Gelap secara manual)';
+  }
+  const qIcon = document.getElementById('iconQuickToggleDarkMode');
+  const qBtn = document.getElementById('btnQuickToggleDarkMode');
+  const qText = document.getElementById('textQuickToggleDarkMode');
+  if (qIcon) {
+    qIcon.className = darkOn ? 'fa-solid fa-sun text-amber-300' : 'fa-solid fa-moon text-amber-200';
+  }
+  if (qText) {
+    qText.textContent = darkOn ? 'Mode Gelap' : 'Mode Terang';
+  }
+  if (qBtn) {
+    qBtn.title = darkOn ? 'Mode Gelap Manual Aktif (Klik untuk kembali ke Mode Terang)' : 'Mode Terang Aktif (Klik untuk ganti ke Mode Gelap secara manual)';
   }
 }
 function toggleDarkMode() {
   const nextDark = !document.documentElement.classList.contains('dark');
   applyThemeModeUI(nextDark);
-  try { localStorage.setItem('aladinDark', nextDark ? '1' : '0'); } catch (e) {}
+  try {
+    localStorage.setItem('aladinDarkManual', nextDark ? '1' : '0');
+    localStorage.setItem('aladinDark', nextDark ? '1' : '0');
+  } catch (e) {}
 }
 (function initLockedThemeMode() {
+  // Mode tampilan selalu manual: default Mode Terang, tidak pernah mengikuti prefers-color-scheme atau jam sistem
   let savedDark = false;
-  try { savedDark = localStorage.getItem('aladinDark') === '1'; } catch (e) {}
+  try { savedDark = localStorage.getItem('aladinDarkManual') === '1'; } catch (e) {}
   applyThemeModeUI(savedDark);
 })();
 function openAddCustomerModal(){openCustomerModal();}
@@ -15528,14 +15563,73 @@ function getMqttBrokerShortName(brokerUrl) {
   return 'CloudRelay';
 }
 
+function isRealProductPhotoDataUrl(img) {
+  return typeof img === 'string' && img.startsWith('data:image/') && !img.startsWith('data:image/svg+xml') && img.length > 64;
+}
+
+const _cloudPhotoThumbCache = new Map();
+function compressImageDataUrlForCloud(dataUrl, maxDim = 320, quality = 0.68) {
+  return new Promise((resolve) => {
+    if (!isRealProductPhotoDataUrl(dataUrl)) {
+      resolve('');
+      return;
+    }
+    if (dataUrl.length <= 16000) {
+      resolve(dataUrl);
+      return;
+    }
+    const cacheKey = dataUrl.length + ':' + dataUrl.slice(0, 48) + ':' + dataUrl.slice(-32);
+    if (_cloudPhotoThumbCache.has(cacheKey)) {
+      resolve(_cloudPhotoThumbCache.get(cacheKey));
+      return;
+    }
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let w = img.naturalWidth || img.width || maxDim;
+          let h = img.naturalHeight || img.height || maxDim;
+          if (w > maxDim || h > maxDim) {
+            if (w >= h) {
+              h = Math.max(1, Math.round((h * maxDim) / w));
+              w = maxDim;
+            } else {
+              w = Math.max(1, Math.round((w * maxDim) / h));
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          let compact = canvas.toDataURL('image/jpeg', quality);
+          if (compact.length > 22000) {
+            compact = canvas.toDataURL('image/jpeg', 0.52);
+          }
+          const finalUrl = compact.length < dataUrl.length ? compact : dataUrl;
+          if (_cloudPhotoThumbCache.size > 400) _cloudPhotoThumbCache.clear();
+          _cloudPhotoThumbCache.set(cacheKey, finalUrl);
+          resolve(finalUrl);
+        } catch (e) {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    } catch (e) {
+      resolve(dataUrl);
+    }
+  });
+}
+
 function compactProductForCloud(p, forMqttRelay = false) {
   if (!p || typeof p !== 'object') return p;
   const copy = { ...p };
   if (typeof copy.image === 'string') {
     if (copy.image.startsWith('data:image/svg+xml')) {
-      copy.image = '';
-    } else if (forMqttRelay && copy.image.length > 6000) {
-      // Foto resolusi tinggi (> 6 KB) tidak dikirim lewat MQTT agar chunk tidak ditolak broker publik
       copy.image = '';
     }
   }
@@ -15547,6 +15641,19 @@ function compactProductForCloud(p, forMqttRelay = false) {
     if (!Array.isArray(copy.extraUnits) || copy.extraUnits.length === 0) delete copy.extraUnits;
   }
   return copy;
+}
+
+async function prepareProductsForCloudSync(rawProducts, forMqttRelay = false) {
+  if (!Array.isArray(rawProducts)) return [];
+  const out = [];
+  for (let i = 0; i < rawProducts.length; i++) {
+    const copy = compactProductForCloud(rawProducts[i], forMqttRelay);
+    if (forMqttRelay && copy && isRealProductPhotoDataUrl(copy.image) && copy.image.length > 16000) {
+      copy.image = await compressImageDataUrlForCloud(copy.image, 320, 0.68);
+    }
+    out.push(copy);
+  }
+  return out;
 }
 
 function expandProductFromCloud(p) {
@@ -16146,6 +16253,11 @@ async function mergeProductsToIndexedDB(cloudProducts, mergeMode = 'smart_sku', 
               );
               const cloudTime = expandedCloud.updatedAt ? (Date.parse(expandedCloud.updatedAt) || 0) : 0;
               if (localTime > 0 && cloudTime > 0 && localTime > cloudTime) {
+                // Tetap sinkronkan foto produk dari Cloud jika produk lokal belum memiliki foto asli
+                if (isRealProductPhotoDataUrl(expandedCloud.image) && !isRealProductPhotoDataUrl(localMatch.image)) {
+                  safePut({ ...localMatch, image: expandedCloud.image }, true);
+                  return;
+                }
                 stats.skipped++;
                 return;
               }
@@ -16502,6 +16614,7 @@ function initGoogleAccountCloudRelay(forceReconnect = false) {
         } else {
           entry.parts[data.chunkIndex] = Array.isArray(data.items) ? data.items : [];
         }
+        googleCloudPullWaiters.forEach(fn => { try { fn('chunk_progress'); } catch (e) {} });
         await checkAndApplyReassembledGoogleCloudChunks(data.syncId);
         return;
       }
@@ -16868,11 +16981,14 @@ function publishPacketListToSingleBroker(brokerUrl, packets, timeoutMs = 6500) {
       });
       tempClient.on('connect', async () => {
         let allOk = true;
-        for (let i = 0; i < packets.length; i++) {
-          const pkt = packets[i];
-          const ok = await mqttPublishAsync(tempClient, pkt.topic, pkt.payload, pkt.opts, 3000);
-          if (!ok) allOk = false;
-          if (packets.length > 3) await new Promise(r => setTimeout(r, 25));
+        const batchSize = 4;
+        for (let i = 0; i < packets.length; i += batchSize) {
+          const batch = packets.slice(i, i + batchSize);
+          const resList = await Promise.all(
+            batch.map(pkt => mqttPublishAsync(tempClient, pkt.topic, pkt.payload, pkt.opts, 4000))
+          );
+          if (resList.some(ok => !ok)) allOk = false;
+          if (i + batchSize < packets.length) await new Promise(r => setTimeout(r, 15));
         }
         finish(allOk);
       });
@@ -16901,6 +17017,7 @@ function probeSingleBrokerForRetainedSnapshot(brokerUrl, topicBase, myDevId, tim
       if (settled) return;
       settled = true;
       clearTimeout(maxTimer);
+      clearTimeout(idleTimer);
       clearTimeout(settleTimer);
       if (tempClient) {
         try { tempClient.end(true); } catch (e) {}
@@ -16922,7 +17039,12 @@ function probeSingleBrokerForRetainedSnapshot(brokerUrl, topicBase, myDevId, tim
       settleTimer = setTimeout(finish, prodResult && setResult ? 350 : 900);
     };
 
-    const maxTimer = setTimeout(finish, timeoutMs);
+    let idleTimer = setTimeout(finish, timeoutMs);
+    const bumpProbeProgressTimer = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(finish, 2600);
+    };
+    const maxTimer = setTimeout(finish, Math.max(timeoutMs, 11000));
 
     try {
       tempClient = window.mqtt.connect(brokerUrl, {
@@ -16956,6 +17078,7 @@ function probeSingleBrokerForRetainedSnapshot(brokerUrl, topicBase, myDevId, tim
         if (data.senderDeviceId && data.senderDeviceId === myDevId) return;
 
         if (topic.endsWith('/manifest') || topic.includes('/prod_chunk/')) {
+          bumpProbeProgressTimer();
           if (!prodChunks[data.syncId]) {
             prodChunks[data.syncId] = { totalChunks: data.totalChunks || 0, parts: {}, meta: null, format: 'items' };
           }
@@ -17053,7 +17176,7 @@ async function publishRetainedGoogleCloudProductsSnapshot() {
   const topicBase = googleCloudActiveTopicBase;
   const primaryBrokerUrl = LAN_MQTT_BROKERS[googleCloudBrokerIdx % LAN_MQTT_BROKERS.length];
   const rawProducts = await getAll('products');
-  const compactProducts = rawProducts.map(p => compactProductForCloud(p, true));
+  const compactProducts = await prepareProductsForCloudSync(rawProducts, true);
 
   const syncId = 'GSYNC-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
   const myDevId = (typeof lanNetworkConfig !== 'undefined') ? lanNetworkConfig.deviceId : 'DEV-LOCAL';
@@ -17158,22 +17281,28 @@ async function publishRetainedGoogleCloudProductsSnapshot() {
     });
   } catch (e) {}
 
-  // Kirim paket Data Barang & Pengaturan ke broker utama terlebih dahulu
+  // Kirim paket Data Barang & Pengaturan ke broker utama secara batch paralel agar foto produk cepat & utuh terkirim
   let primaryManifestOk = false;
-  for (let i = 0; i < criticalPackets.length; i++) {
-    const pkt = criticalPackets[i];
-    const ok = await mqttPublishAsync(client, pkt.topic, pkt.payload, pkt.opts, 4000);
-    if (pkt.topic.endsWith('/manifest') && ok) primaryManifestOk = true;
-    if (criticalPackets.length > 4) await new Promise(r => setTimeout(r, 30));
+  const pubBatchSize = 4;
+  for (let i = 0; i < criticalPackets.length; i += pubBatchSize) {
+    const batch = criticalPackets.slice(i, i + pubBatchSize);
+    const resList = await Promise.all(
+      batch.map(pkt => mqttPublishAsync(client, pkt.topic, pkt.payload, pkt.opts, 4500).then(ok => ({ pkt, ok })))
+    );
+    resList.forEach(({ pkt, ok }) => {
+      if (pkt.topic.endsWith('/manifest') && ok) primaryManifestOk = true;
+    });
+    if (i + pubBatchSize < criticalPackets.length) await new Promise(r => setTimeout(r, 15));
   }
 
   // Mirror paket Data Barang & Pengaturan ke broker cadangan secara paralel (anti split-brain antar perangkat!)
   const deliveredBrokers = [];
   if (primaryManifestOk) deliveredBrokers.push(getMqttBrokerShortName(primaryBrokerUrl));
   const otherBrokers = LAN_MQTT_BROKERS.filter(b => b !== primaryBrokerUrl);
+  const mirrorTimeoutMs = Math.max(8500, criticalPackets.length * 220 + 4500);
   try {
     const mirrorResults = await Promise.all(
-      otherBrokers.map(bUrl => publishPacketListToSingleBroker(bUrl, criticalPackets, 6500).then(ok => ({ bUrl, ok })))
+      otherBrokers.map(bUrl => publishPacketListToSingleBroker(bUrl, criticalPackets, mirrorTimeoutMs).then(ok => ({ bUrl, ok })))
     );
     mirrorResults.forEach(r => {
       if (r.ok) deliveredBrokers.push(getMqttBrokerShortName(r.bUrl));
@@ -17266,32 +17395,43 @@ async function pullSnapshotFromGoogleCloudRelay(timeoutMs = 4500) {
       }), { qos: 0 });
     } catch (e) {}
 
-    // Tunggu pesan segar (receivedAt >= pullStartedAt) dari broker aktif
+    // Tunggu pesan segar (receivedAt >= pullStartedAt) dari broker aktif dengan timer adaptif untuk chunk foto
     await new Promise((resolve) => {
       let done = false;
       let settleTimer = null;
+      let idleTimer = null;
       const finish = () => {
         if (done) return;
         done = true;
         clearTimeout(maxTimer);
+        clearTimeout(idleTimer);
         clearTimeout(settleTimer);
         googleCloudPullWaiters = googleCloudPullWaiters.filter(w => w !== onData);
         resolve(true);
       };
       const hasFreshProd = () => Boolean(googleCloudLatestRemoteProducts && (googleCloudLatestRemoteProducts.receivedAt || 0) >= pullStartedAt);
       const hasFreshSet = () => Boolean(googleCloudLatestRemoteSettings && (googleCloudLatestRemoteSettings.receivedAt || 0) >= pullStartedAt);
-      const onData = () => {
+      const bumpIdle = (ms) => {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(finish, ms);
+      };
+      const onData = (eventType) => {
+        if (eventType === 'chunk_progress') {
+          bumpIdle(2800);
+          return;
+        }
         if (hasFreshProd() && hasFreshSet()) {
           clearTimeout(settleTimer);
           settleTimer = setTimeout(finish, 350);
         } else if (hasFreshProd() || hasFreshSet()) {
           clearTimeout(settleTimer);
-          settleTimer = setTimeout(finish, 1100);
+          settleTimer = setTimeout(finish, 1200);
         }
       };
       googleCloudPullWaiters.push(onData);
       if (hasFreshProd()) onData();
-      const maxTimer = setTimeout(finish, Math.min(timeoutMs, 3000));
+      bumpIdle(Math.max(3500, Math.min(timeoutMs, 4500)));
+      const maxTimer = setTimeout(finish, 15000);
     });
   }
 
@@ -17303,7 +17443,7 @@ async function pullSnapshotFromGoogleCloudRelay(timeoutMs = 4500) {
     const brokersToProbe = isConnected ? LAN_MQTT_BROKERS.filter(b => b !== primaryBrokerUrl) : LAN_MQTT_BROKERS.slice();
     try {
       const probeResults = await Promise.all(
-        brokersToProbe.map(bUrl => probeSingleBrokerForRetainedSnapshot(bUrl, topicBase, myDevId, 4200))
+        brokersToProbe.map(bUrl => probeSingleBrokerForRetainedSnapshot(bUrl, topicBase, myDevId, 7500))
       );
       const validProbes = probeResults.filter(Boolean);
       validProbes.sort((a, b) => {
@@ -17465,15 +17605,18 @@ async function confirmClearProductsWithAccountAuth(e) {
   );
 }
 
-function broadcastGoogleAccountRealtimeDelta(opType, storeName, payload) {
+async function broadcastGoogleAccountRealtimeDelta(opType, storeName, payload) {
   if (!googleSyncState.connected || !googleSyncState.email || !googleSyncState.autoSync) return;
   if (!googleCloudMqttClient || !googleCloudMqttClient.connected || !googleCloudActiveTopicBase) return;
 
   const myDevId = (typeof lanNetworkConfig !== 'undefined') ? lanNetworkConfig.deviceId : 'DEV-LOCAL';
   const myDevName = (typeof lanNetworkConfig !== 'undefined') ? lanNetworkConfig.deviceName : 'Kasir POS';
-  const cleanPayload = (storeName === 'products' && payload && typeof payload === 'object')
-    ? compactProductForCloud(payload)
+  let cleanPayload = (storeName === 'products' && payload && typeof payload === 'object')
+    ? compactProductForCloud(payload, true)
     : payload;
+  if (storeName === 'products' && cleanPayload && isRealProductPhotoDataUrl(cleanPayload.image) && cleanPayload.image.length > 16000) {
+    cleanPayload = { ...cleanPayload, image: await compressImageDataUrlForCloud(cleanPayload.image, 320, 0.68) };
+  }
 
   try {
     googleCloudMqttClient.publish(`${googleCloudActiveTopicBase}/delta`, JSON.stringify({
@@ -17505,9 +17648,10 @@ async function syncProductsOnlyToGoogleAccount(showFeedback = true) {
   if (showFeedback) {
     await renderGoogleSyncModalUI();
     if (res && res.cloudDelivered) {
+      const syncedPhotoCount = products.filter(p => p && isRealProductPhotoDataUrl(p.image)).length;
       showCustomAlert(
         'Data Barang & Pengaturan Tersinkron ke Cloud!',
-        `Berhasil mengirim ${products.length} Data Barang & Pengaturan ke Akun Google "${googleSyncState.email}" melalui ${res.channels.join(' + ')}. Sekarang buka perangkat lain dengan email yang sama lalu klik "Tarik Barang dari Google" atau "Verifikasi PIN & Terapkan".`,
+        `Berhasil mengirim ${products.length} Data Barang (termasuk ${syncedPhotoCount} foto produk) & Pengaturan ke Akun Google "${googleSyncState.email}" melalui ${res.channels.join(' + ')}. Sekarang buka perangkat lain dengan email yang sama lalu klik "Tarik Barang dari Google" atau "Verifikasi PIN & Terapkan".`,
         'warning'
       );
     } else {
