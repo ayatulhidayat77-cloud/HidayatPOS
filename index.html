@@ -1790,6 +1790,10 @@
               <i class="fa-solid fa-file-export"></i>
               <span>Export .xlsx</span>
             </button>
+            <button type="button" onclick="openDeleteByFilterModal()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-2 rounded-xl font-bold flex items-center space-x-1.5 shadow-sm transition" title="Hapus massal produk berdasarkan kategori, no. rak, kondisi stok/expired, atau hasil sortir aktif">
+              <i class="fa-solid fa-trash"></i>
+              <span>Hapus Kategori/Sortir</span>
+            </button>
             <button type="button" onclick="deleteAllProducts()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-3 py-2 rounded-xl font-bold flex items-center space-x-1.5 shadow-sm transition">
               <i class="fa-solid fa-trash-can"></i>
               <span>Hapus Semua</span>
@@ -1922,6 +1926,10 @@
             </div>
             <select id="productCategoryFilter" onchange="currentProductPage = 1; renderProductTable()" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700"><option value="">Semua Kategori (Sortir)</option><option value="Sembako">Sembako</option><option value="Makanan">Makanan</option><option value="Minuman">Minuman</option><option value="Kebutuhan Rumah">Kebutuhan Rumah</option><option value="Snack">Snack</option><option value="Obat - Obatan">Obat - Obatan</option><option value="Permen &amp; Minuman Serbuk">Permen &amp; Minuman Serbuk</option><option value="Rokok">Rokok</option><option value="Makanan Instan">Makanan Instan</option><option value="Sosis &amp; Es Krim">Sosis &amp; Es Krim</option><option value="A&amp;B Kebersihan">A&amp;B Kebersihan</option><option value="Bahan Kue">Bahan Kue</option><option value="Lainnya">Lainnya</option><option value="A&amp;B Plastik">A&amp;B Plastik</option><option value="A&amp;B Alat ">A&amp;B Alat </option></select>
             <select id="productRackFilter" onchange="currentProductPage = 1; renderProductTable()" class="bg-amber-50/90 border border-amber-200 rounded-xl px-3 py-2 text-xs font-extrabold text-amber-900"><option value="">Semua No. Rak</option><option value="Rak A-01">Rak A-01</option><option value="Rak A-02">Rak A-02</option><option value="Rak B-01">Rak B-01</option><option value="Rak B-02">Rak B-02</option><option value="Rak C-01">Rak C-01</option><option value="Etalase Depan">Etalase Depan</option><option value="Kulkas / Chiller">Kulkas / Chiller</option><option value="Gudang Belakang">Gudang Belakang</option><option value="__EMPTY__">Belum Ada No. Rak</option></select>
+            <button type="button" id="btnQuickDeleteFilteredProducts" onclick="openDeleteByFilterModal('active_filter')" title="Hapus semua produk sesuai kategori atau hasil sortir yang aktif" class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 flex-shrink-0 shadow-sm transition">
+              <i class="fa-solid fa-trash-can"></i>
+              <span id="btnQuickDeleteFilteredLabel">Hapus Sortir (0)</span>
+            </button>
           </div>
           <div class="flex items-center justify-between sm:justify-end gap-2">
             <span class="text-[11px] font-bold text-slate-500"><i class="fa-solid fa-layer-group text-indigo-600 mr-1"></i>Tampilan Daftar Barang:</span>
@@ -4914,6 +4922,137 @@
   </div>
 
   <!-- Modal Login Akun Google & Sinkronisasi Cloud Data Barang -->
+  <!-- Modal Hapus Semua Produk Berdasarkan Kategori / Sortir -->
+  <div id="deleteProductsByFilterModal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-rose-200 overflow-hidden my-auto">
+      <div class="px-5 py-4 bg-gradient-to-r from-rose-600 to-rose-700 text-white flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
+            <i class="fa-solid fa-trash-can text-base"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base">Hapus Massal Produk Berdasarkan Kategori / Sortir</h3>
+            <p class="text-[11px] text-rose-100">Pilih kategori, no. rak, kondisi stok/expired, atau hasil sortir aktif untuk dihapus sekaligus</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('deleteProductsByFilterModal')" class="w-8 h-8 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+        <!-- Pilihan Mode Filter -->
+        <div>
+          <label class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-1.5">Metode Penghapusan Massal:</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+            <button type="button" id="bulkDelTab_active_filter" onclick="switchBulkDeleteFilterMode('active_filter')" class="py-2 px-2.5 rounded-lg bg-white text-rose-700 shadow-sm transition text-[11px] font-extrabold">
+              Sortir Aktif
+            </button>
+            <button type="button" id="bulkDelTab_by_category" onclick="switchBulkDeleteFilterMode('by_category')" class="py-2 px-2.5 rounded-lg text-slate-600 hover:bg-slate-200 transition text-[11px] font-bold">
+              Per Kategori
+            </button>
+            <button type="button" id="bulkDelTab_by_rack" onclick="switchBulkDeleteFilterMode('by_rack')" class="py-2 px-2.5 rounded-lg text-slate-600 hover:bg-slate-200 transition text-[11px] font-bold">
+              Per No. Rak
+            </button>
+            <button type="button" id="bulkDelTab_by_condition" onclick="switchBulkDeleteFilterMode('by_condition')" class="py-2 px-2.5 rounded-lg text-slate-600 hover:bg-slate-200 transition text-[11px] font-bold">
+              Stok / Expired
+            </button>
+          </div>
+        </div>
+
+        <!-- Panel 1: Hasil Sortir Aktif -->
+        <div id="bulkDelPanel_active_filter" class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1.5 text-xs">
+          <div class="font-extrabold text-slate-800 flex items-center gap-1.5">
+            <i class="fa-solid fa-sliders text-indigo-600"></i>
+            <span>Filter &amp; Sortir Aktif di Menu Manajemen Produk:</span>
+          </div>
+          <div id="bulkDelActiveFilterSummary" class="text-[11px] text-slate-600 leading-relaxed">Memuat filter aktif...</div>
+        </div>
+
+        <!-- Panel 2: Pilih Kategori -->
+        <div id="bulkDelPanel_by_category" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
+          <label for="bulkDelCategorySelect" class="block font-extrabold text-slate-800">Pilih Kategori Produk yang Akan Dihapus Semua:</label>
+          <select id="bulkDelCategorySelect" onchange="refreshDeleteByFilterPreview()" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-extrabold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">-- Pilih Kategori --</option>
+          </select>
+        </div>
+
+        <!-- Panel 3: Pilih No. Rak -->
+        <div id="bulkDelPanel_by_rack" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
+          <label for="bulkDelRackSelect" class="block font-extrabold text-slate-800">Pilih No. Rak / Lokasi Simpan yang Akan Dihapus Semua:</label>
+          <select id="bulkDelRackSelect" onchange="refreshDeleteByFilterPreview()" class="w-full p-2.5 bg-white border border-amber-300 rounded-xl text-xs font-extrabold text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="">-- Pilih No. Rak --</option>
+          </select>
+        </div>
+
+        <!-- Panel 4: Pilih Kondisi Stok / Kedaluwarsa -->
+        <div id="bulkDelPanel_by_condition" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
+          <label for="bulkDelConditionSelect" class="block font-extrabold text-slate-800">Pilih Kondisi Stok / Kedaluwarsa:</label>
+          <select id="bulkDelConditionSelect" onchange="refreshDeleteByFilterPreview()" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-extrabold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="stock_zero">Stok Kosong (Stok = 0)</option>
+            <option value="stock_low">Stok Menipis (Stok &lt;= 5)</option>
+            <option value="expired">Sudah Kedaluwarsa (Expired)</option>
+            <option value="expiring_soon">Mendekati Kedaluwarsa (&lt;= 30 Hari)</option>
+            <option value="no_expiry">Tanpa Tanggal Kedaluwarsa</option>
+          </select>
+        </div>
+
+        <!-- Ringkasan Dampak Penghapusan -->
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-rose-50 border border-rose-200 rounded-xl p-2.5">
+            <span class="text-[10px] font-bold uppercase text-rose-600 block">Produk Dihapus</span>
+            <span id="bulkDelMatchCount" class="text-base font-black text-rose-800">0 Produk</span>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+            <span class="text-[10px] font-bold uppercase text-amber-700 block">Total Stok</span>
+            <span id="bulkDelMatchStock" class="text-base font-black text-amber-900">0 Unit</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+            <span class="text-[10px] font-bold uppercase text-slate-500 block">Estimasi Aset HPP</span>
+            <span id="bulkDelMatchHpp" class="text-sm sm:text-base font-black text-slate-800">Rp 0</span>
+          </div>
+        </div>
+
+        <!-- Preview Daftar Produk yang Akan Dihapus -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="font-extrabold text-slate-700">Preview Daftar Produk yang Akan Dihapus:</span>
+            <span id="bulkDelPreviewHint" class="text-slate-500 font-semibold">Menampilkan maks. 25 item</span>
+          </div>
+          <div class="overflow-x-auto max-h-48 overflow-y-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead class="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] sticky top-0">
+                <tr>
+                  <th class="p-2 border-b">SKU</th>
+                  <th class="p-2 border-b">Nama Produk</th>
+                  <th class="p-2 border-b">Kategori</th>
+                  <th class="p-2 border-b text-center">No. Rak</th>
+                  <th class="p-2 border-b text-center">Stok</th>
+                </tr>
+              </thead>
+              <tbody id="bulkDelPreviewTableBody" class="divide-y divide-slate-100 text-[11px]">
+                <tr><td colspan="5" class="p-4 text-center text-slate-400">Pilih kategori atau filter untuk melihat daftar produk.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-rose-50 border border-rose-200 rounded-xl p-3 text-[11px] text-rose-800 leading-relaxed flex items-start gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-rose-600 mt-0.5 flex-shrink-0"></i>
+          <span><b>Perhatian:</b> Produk yang dihapus tidak dapat dikembalikan. Disarankan untuk klik <b>Export .xlsx</b> atau <b>Backup JSON</b> terlebih dahulu sebelum menghapus data dalam jumlah besar.</span>
+        </div>
+      </div>
+
+      <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 flex-shrink-0">
+        <button type="button" onclick="closeModal('deleteProductsByFilterModal')" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition">Batal</button>
+        <button type="button" id="btnConfirmBulkDeleteByFilter" onclick="executeBulkDeleteByFilter()" disabled class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition">
+          <i class="fa-solid fa-trash-can"></i>
+          <span id="btnConfirmBulkDeleteLabel">Hapus Massal (0 Produk)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Verifikasi Password/PIN untuk Hapus Data Barang & Sinkron Cloud -->
   <div id="clearProductsWithAuthModal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-rose-200 overflow-hidden">
@@ -10429,6 +10568,9 @@
       });
 
       updateProductStockSummaryCards(filtered);
+      if (typeof updateQuickDeleteFilteredButton === 'function') {
+        updateQuickDeleteFilteredButton(filtered, q, selectedCategory, selectedRack);
+      }
 
       const tbody = document.getElementById('productTableBody');
       const tableWrap = document.getElementById('productTableWrapper');
@@ -11436,6 +11578,322 @@
         } catch (err) {
           showCustomAlert('Gagal', 'Operasi hapus gagal.', 'danger');
         }
+      }
+    }
+
+    /* ================= HAPUS MASSAL PRODUK BERDASARKAN KATEGORI / SORTIR ================= */
+    let bulkDeleteFilterMode = 'active_filter';
+
+    function updateQuickDeleteFilteredButton(filteredList, q, selectedCategory, selectedRack) {
+      const btn = document.getElementById('btnQuickDeleteFilteredProducts');
+      const lbl = document.getElementById('btnQuickDeleteFilteredLabel');
+      if (!btn || !lbl) return;
+
+      const count = Array.isArray(filteredList) ? filteredList.length : 0;
+      const hasActiveFilter = Boolean((q && q.trim() !== '') || selectedCategory !== '' || selectedRack !== '');
+
+      if (hasActiveFilter) {
+        if (selectedCategory && !q && !selectedRack) {
+          const shortCat = selectedCategory.length > 16 ? selectedCategory.slice(0, 15) + '…' : selectedCategory;
+          lbl.innerText = `Hapus "${shortCat}" (${count})`;
+        } else if (selectedRack && !q && !selectedCategory) {
+          const rackLabel = selectedRack === '__EMPTY__' ? 'Tanpa Rak' : selectedRack;
+          lbl.innerText = `Hapus ${rackLabel} (${count})`;
+        } else {
+          lbl.innerText = `Hapus Hasil Sortir (${count})`;
+        }
+        btn.className = count > 0
+          ? 'px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white border border-rose-600 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 flex-shrink-0 shadow-sm transition'
+          : 'px-3 py-2 bg-rose-50 text-rose-500 border border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 flex-shrink-0 transition';
+      } else {
+        lbl.innerText = `Hapus Kategori/Sortir`;
+        btn.className = 'px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 flex-shrink-0 shadow-sm transition';
+      }
+    }
+
+    async function openDeleteByFilterModal(preferredMode = null) {
+      const products = await getAll('products');
+      const q = (document.getElementById('productSearch')?.value || '').trim();
+      const selectedCategory = document.getElementById('productCategoryFilter')?.value || '';
+      const selectedRack = document.getElementById('productRackFilter')?.value || '';
+      const hasActiveFilter = Boolean(q || selectedCategory || selectedRack);
+
+      // Isi dropdown Kategori dengan jumlah barang per kategori
+      const catCounts = new Map();
+      let emptyCatCount = 0;
+      const rackCounts = new Map();
+      let emptyRackCount = 0;
+
+      products.forEach(p => {
+        const cat = (p.category || '').trim();
+        if (cat) catCounts.set(cat, (catCounts.get(cat) || 0) + 1);
+        else emptyCatCount++;
+
+        const rack = getProductRackDisplay(p);
+        if (rack) rackCounts.set(rack, (rackCounts.get(rack) || 0) + 1);
+        else emptyRackCount++;
+      });
+
+      const catSelect = document.getElementById('bulkDelCategorySelect');
+      if (catSelect) {
+        let opts = '<option value="">-- Pilih Kategori Produk --</option>';
+        Array.from(catCounts.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([cat, cnt]) => {
+          opts += `<option value="${escapeHtml(cat)}">${escapeHtml(cat)} (${cnt} produk)</option>`;
+        });
+        if (emptyCatCount > 0) {
+          opts += `<option value="__EMPTY__">Tanpa Kategori (${emptyCatCount} produk)</option>`;
+        }
+        catSelect.innerHTML = opts;
+        if (selectedCategory && catCounts.has(selectedCategory)) {
+          catSelect.value = selectedCategory;
+        }
+      }
+
+      const rackSelect = document.getElementById('bulkDelRackSelect');
+      if (rackSelect) {
+        let opts = '<option value="">-- Pilih No. Rak --</option>';
+        Array.from(rackCounts.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([rack, cnt]) => {
+          opts += `<option value="${escapeHtml(rack)}">${escapeHtml(rack)} (${cnt} produk)</option>`;
+        });
+        if (emptyRackCount > 0) {
+          opts += `<option value="__EMPTY__">Belum Ada No. Rak (${emptyRackCount} produk)</option>`;
+        }
+        rackSelect.innerHTML = opts;
+        if (selectedRack) {
+          rackSelect.value = selectedRack;
+        }
+      }
+
+      let targetMode = preferredMode;
+      if (!targetMode) {
+        targetMode = hasActiveFilter ? 'active_filter' : 'by_category';
+      } else if (targetMode === 'active_filter' && !hasActiveFilter) {
+        targetMode = 'by_category';
+      }
+
+      switchBulkDeleteFilterMode(targetMode);
+      openModal('deleteProductsByFilterModal');
+    }
+
+    function switchBulkDeleteFilterMode(mode) {
+      bulkDeleteFilterMode = mode || 'active_filter';
+      const modes = ['active_filter', 'by_category', 'by_rack', 'by_condition'];
+      modes.forEach(m => {
+        const tabBtn = document.getElementById(`bulkDelTab_${m}`);
+        const panel = document.getElementById(`bulkDelPanel_${m}`);
+        if (tabBtn) {
+          tabBtn.className = (m === bulkDeleteFilterMode)
+            ? 'py-2 px-2.5 rounded-lg bg-white text-rose-700 shadow-sm transition text-[11px] font-extrabold'
+            : 'py-2 px-2.5 rounded-lg text-slate-600 hover:bg-slate-200 transition text-[11px] font-bold';
+        }
+        if (panel) {
+          if (m === bulkDeleteFilterMode) panel.classList.remove('hidden');
+          else panel.classList.add('hidden');
+        }
+      });
+      refreshDeleteByFilterPreview();
+    }
+
+    function getBulkDeleteTargetProducts(allProducts) {
+      const products = Array.isArray(allProducts) ? allProducts : [];
+      if (bulkDeleteFilterMode === 'active_filter') {
+        const q = (document.getElementById('productSearch')?.value || '').trim();
+        const qLower = q.toLowerCase();
+        const selectedCategory = document.getElementById('productCategoryFilter')?.value || '';
+        const selectedRack = document.getElementById('productRackFilter')?.value || '';
+
+        const items = products.filter(p => {
+          const rackStr = getProductRackDisplay(p);
+          const matchQ = productMatchesBarcodeOrQuery(p, qLower);
+          const matchC = selectedCategory === '' || p.category === selectedCategory;
+          const matchR = selectedRack === '' || (selectedRack === '__EMPTY__' ? rackStr === '' : rackStr === selectedRack);
+          return matchQ && matchC && matchR;
+        });
+
+        const parts = [];
+        if (selectedCategory) parts.push(`Kategori: ${selectedCategory}`);
+        if (selectedRack) parts.push(`No. Rak: ${selectedRack === '__EMPTY__' ? 'Belum Ada No. Rak' : selectedRack}`);
+        if (q) parts.push(`Pencarian: "${q}"`);
+        const criteriaLabel = parts.length > 0 ? parts.join(' • ') : 'Semua Produk (Tanpa Filter Aktif)';
+        return { items, criteriaLabel, hasFilter: parts.length > 0 };
+      }
+
+      if (bulkDeleteFilterMode === 'by_category') {
+        const catVal = document.getElementById('bulkDelCategorySelect')?.value || '';
+        if (!catVal) return { items: [], criteriaLabel: 'Belum memilih kategori', hasFilter: false };
+        const items = products.filter(p => {
+          const c = (p.category || '').trim();
+          return catVal === '__EMPTY__' ? c === '' : c === catVal;
+        });
+        const label = catVal === '__EMPTY__' ? 'Kategori: Tanpa Kategori' : `Kategori: ${catVal}`;
+        return { items, criteriaLabel: label, hasFilter: true };
+      }
+
+      if (bulkDeleteFilterMode === 'by_rack') {
+        const rackVal = document.getElementById('bulkDelRackSelect')?.value || '';
+        if (!rackVal) return { items: [], criteriaLabel: 'Belum memilih No. Rak', hasFilter: false };
+        const items = products.filter(p => {
+          const r = getProductRackDisplay(p);
+          return rackVal === '__EMPTY__' ? r === '' : r === rackVal;
+        });
+        const label = rackVal === '__EMPTY__' ? 'No. Rak: Belum Ada No. Rak' : `No. Rak: ${rackVal}`;
+        return { items, criteriaLabel: label, hasFilter: true };
+      }
+
+      // by_condition
+      const cond = document.getElementById('bulkDelConditionSelect')?.value || 'stock_zero';
+      let items = [];
+      let label = '';
+      if (cond === 'stock_zero') {
+        items = products.filter(p => (parseFloat(p.stock) || 0) <= 0);
+        label = 'Kondisi: Stok Kosong (= 0)';
+      } else if (cond === 'stock_low') {
+        items = products.filter(p => (parseFloat(p.stock) || 0) <= 5);
+        label = 'Kondisi: Stok Menipis (<= 5)';
+      } else if (cond === 'expired') {
+        items = products.filter(p => getProductExpiryStatus(p.expiredDate).status === 'expired');
+        label = 'Kondisi: Sudah Kedaluwarsa (Expired)';
+      } else if (cond === 'expiring_soon') {
+        items = products.filter(p => getProductExpiryStatus(p.expiredDate).status === 'warning');
+        label = 'Kondisi: Mendekati Kedaluwarsa (<= 30 Hari)';
+      } else {
+        items = products.filter(p => !p.expiredDate || String(p.expiredDate).trim() === '');
+        label = 'Kondisi: Tanpa Tanggal Kedaluwarsa';
+      }
+      return { items, criteriaLabel: label, hasFilter: true };
+    }
+
+    async function refreshDeleteByFilterPreview() {
+      const allProducts = await getAll('products');
+      const { items, criteriaLabel, hasFilter } = getBulkDeleteTargetProducts(allProducts);
+
+      const summaryEl = document.getElementById('bulkDelActiveFilterSummary');
+      if (summaryEl) {
+        summaryEl.innerHTML = hasFilter
+          ? `<span class="font-bold text-indigo-800">${escapeHtml(criteriaLabel)}</span>`
+          : `<span class="text-amber-700 font-bold">Saat ini tidak ada filter/sortir aktif — seluruh ${allProducts.length} produk cocok. Anda juga bisa memilih tab <b>Per Kategori</b> atau <b>Per No. Rak</b> di atas.</span>`;
+      }
+
+      let totalStock = 0;
+      let totalHpp = 0;
+      items.forEach(p => {
+        const st = Math.max(0, Number(p.stock) || 0);
+        totalStock += st;
+        totalHpp += st * (Number(p.costPrice) || 0);
+      });
+
+      const countEl = document.getElementById('bulkDelMatchCount');
+      const stockEl = document.getElementById('bulkDelMatchStock');
+      const hppEl = document.getElementById('bulkDelMatchHpp');
+      const btnConfirm = document.getElementById('btnConfirmBulkDeleteByFilter');
+      const btnConfirmLbl = document.getElementById('btnConfirmBulkDeleteLabel');
+      const hintEl = document.getElementById('bulkDelPreviewHint');
+      const tbody = document.getElementById('bulkDelPreviewTableBody');
+
+      if (countEl) countEl.innerText = `${items.length.toLocaleString('id-ID')} Produk`;
+      if (stockEl) stockEl.innerText = `${totalStock.toLocaleString('id-ID')} Unit`;
+      if (hppEl) hppEl.innerText = `Rp ${Math.round(totalHpp).toLocaleString('id-ID')}`;
+
+      if (btnConfirm) btnConfirm.disabled = items.length === 0;
+      if (btnConfirmLbl) btnConfirmLbl.innerText = `Hapus Massal (${items.length} Produk)`;
+      if (hintEl) hintEl.innerText = items.length > 25 ? `Menampilkan 25 dari ${items.length} produk` : `Total ${items.length} produk cocok`;
+
+      if (tbody) {
+        if (items.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">Tidak ada produk yang cocok dengan pilihan filter ini.</td></tr>`;
+        } else {
+          const previewSlice = items.slice(0, 25);
+          let rowsHtml = previewSlice.map(p => `
+            <tr class="hover:bg-rose-50/40">
+              <td class="p-2 font-mono font-bold text-slate-600 whitespace-nowrap">${escapeHtml(p.sku || '-')}</td>
+              <td class="p-2 font-bold text-slate-800">${escapeHtml(p.name || '-')}</td>
+              <td class="p-2"><span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-semibold text-[10px]">${escapeHtml(p.category || 'Tanpa Kategori')}</span></td>
+              <td class="p-2 text-center text-amber-800 font-semibold whitespace-nowrap">${escapeHtml(getProductRackDisplay(p) || '-')}</td>
+              <td class="p-2 text-center font-extrabold ${(p.stock || 0) <= 5 ? 'text-rose-600' : 'text-slate-700'} whitespace-nowrap">${p.stock || 0} ${escapeHtml(p.unit || 'Pcs')}</td>
+            </tr>
+          `).join('');
+          if (items.length > 25) {
+            rowsHtml += `<tr><td colspan="5" class="p-2 text-center text-[11px] font-bold text-slate-500 bg-slate-50">... dan ${(items.length - 25).toLocaleString('id-ID')} produk lainnya akan ikut dihapus.</td></tr>`;
+          }
+          tbody.innerHTML = rowsHtml;
+        }
+      }
+    }
+
+    async function executeBulkDeleteByFilter() {
+      const allProducts = await getAll('products');
+      const { items, criteriaLabel } = getBulkDeleteTargetProducts(allProducts);
+      if (items.length === 0) {
+        showCustomAlert('Tidak Ada Produk', 'Tidak ada produk yang cocok dengan kategori atau sortir yang dipilih.', 'warning');
+        return;
+      }
+
+      const confirmed = await showConfirmModal(
+        `PERINGATAN: Anda akan menghapus ${items.length} produk berdasarkan [${criteriaLabel}]. Tindakan ini tidak dapat dibatalkan! Lanjutkan?`,
+        'Konfirmasi Hapus Massal Produk'
+      );
+      if (!confirmed) return;
+
+      try {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('products', 'readwrite');
+          const store = tx.objectStore('products');
+          items.forEach(p => {
+            if (p && p.id !== undefined) {
+              store.delete(p.id);
+            }
+          });
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => reject(tx.error || new Error('Transaksi hapus massal gagal'));
+        });
+
+        invalidateProductsCache();
+
+        items.forEach(p => {
+          if (p && p.sku && typeof recordDeletedProductSkuTombstone === 'function') {
+            try { recordDeletedProductSkuTombstone(p.sku); } catch (e) {}
+          }
+        });
+
+        if (items.length === allProducts.length && typeof notifyDatabaseMutation === 'function') {
+          notifyDatabaseMutation('clear', 'products', { clearedAt: new Date().toISOString(), criteria: criteriaLabel });
+        } else if (typeof notifyDatabaseMutation === 'function') {
+          items.forEach(p => {
+            try {
+              notifyDatabaseMutation('delete', 'products', { key: p.id, sku: p.sku ? String(p.sku) : undefined });
+            } catch (e) {}
+          });
+        }
+
+        if (typeof recordAuditLog === 'function') {
+          await recordAuditLog(
+            'Hapus Massal Produk (Kategori/Sortir)',
+            `Menghapus ${items.length} produk (${criteriaLabel}).`
+          );
+        }
+
+        // Reset filter kategori/rak jika seluruh item pada kategori/rak tersebut sudah habis
+        if (bulkDeleteFilterMode === 'active_filter') {
+          const catEl = document.getElementById('productCategoryFilter');
+          const rackEl = document.getElementById('productRackFilter');
+          const searchEl = document.getElementById('productSearch');
+          if (catEl) catEl.value = '';
+          if (rackEl) rackEl.value = '';
+          if (searchEl) searchEl.value = '';
+        }
+
+        currentProductPage = 1;
+        closeModal('deleteProductsByFilterModal');
+        await populateProductCategoryFilter();
+        await populatePosCategories();
+        await renderAll();
+        showCustomAlert(
+          'Hapus Massal Berhasil',
+          `Berhasil menghapus ${items.length} produk berdasarkan [${criteriaLabel}].`,
+          'warning'
+        );
+      } catch (err) {
+        showCustomAlert('Gagal Menghapus', 'Terjadi kendala saat menghapus produk massal: ' + (err && err.message ? err.message : err), 'danger');
       }
     }
 
