@@ -99,6 +99,40 @@
     .offline-no-fa .fa-bars::before, .offline-no-fa .fa-grip::before { content: "☰"; }
     .offline-no-fa .fa-book-open::before { content: "📖"; }
     .offline-no-fa .fa-file-pdf::before { content: "📄"; }
+    .offline-no-fa .fa-camera::before, .offline-no-fa .fa-camera-retro::before { content: "📷"; }
+    .offline-no-fa .fa-paste::before, .offline-no-fa .fa-clipboard::before { content: "📋"; }
+    .offline-no-fa .fa-crop-simple::before, .offline-no-fa .fa-desktop::before { content: "✂️"; }
+    .offline-no-fa .fa-image::before { content: "🖼️"; }
+    .offline-no-fa .fa-rotate-left::before { content: "↺"; }
+  </style>
+  <style id="productPhotoClipboardScreenshotStyles">
+    #prodImagePasteZone {
+      transition: all 0.2s ease;
+    }
+    #prodImagePasteZone.paste-zone-dragover,
+    #prodImagePasteZone:focus {
+      border-color: #4f46e5 !important;
+      background-color: #eef2ff !important;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+    }
+    html.dark #prodImagePasteZone.paste-zone-dragover,
+    html.dark #prodImagePasteZone:focus {
+      background-color: #1e2547 !important;
+      border-color: #818cf8 !important;
+    }
+    #prodScreenshotCanvas {
+      max-width: 100%;
+      max-height: 58vh;
+      width: auto;
+      height: auto;
+      cursor: crosshair;
+      touch-action: none;
+      display: block;
+      margin: 0 auto;
+      user-select: none;
+      -webkit-user-select: none;
+    }
   </style>
 
   <style>
@@ -3605,29 +3639,60 @@
             <label class="text-xs font-bold block mb-1 text-slate-700">Nama Produk</label>
             <input type="text" id="prodName" placeholder="Contoh: (KG) ACI SAMPE KILOAN 1 KG / Beras Ramos 5Kg" required="" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-extrabold text-slate-800 mb-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
             
-            <!-- Panel Foto / Gambar Produk dengan Fitur Kamera Langsung & Pilih File -->
-            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <div id="prodImagePreviewBox" class="w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
-                <i id="prodImagePlaceholderIcon" class="fa-solid fa-image text-slate-300 text-2xl"></i>
-                <img id="prodImagePreview" src="" alt="Preview Produk" class="w-full h-full object-cover hidden">
-              </div>
-              <div class="flex-1 min-w-0 space-y-1.5 w-full">
-                <label class="text-[11px] font-extrabold text-indigo-700 block">Foto / Gambar Produk (Tampil di Kasir POS)</label>
-                <div class="flex flex-wrap items-center gap-2">
-                  <!-- Pilih File Galeri -->
-                  <input type="file" id="prodImageInput" accept="image/*" onchange="handleProductImageChange(this)" class="text-[11px] text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[11px] file:font-extrabold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer">
-                  
-                  <!-- Ambil Foto dari Kamera Perangkat -->
-                  <button type="button" onclick="openProductPhotoCameraModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 shadow-sm transition">
-                    <i class="fa-solid fa-camera"></i>
-                    <span>Ambil Foto Kamera</span>
-                  </button>
+            <!-- Panel Foto / Gambar Produk dengan Fitur Kamera, Screenshot Layar, Clipboard (Ctrl+V) & Pilih File -->
+            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
+              <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div id="prodImagePreviewBox" class="w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+                  <i id="prodImagePlaceholderIcon" class="fa-solid fa-image text-slate-300 text-2xl"></i>
+                  <img id="prodImagePreview" src="" alt="Preview Produk" class="w-full h-full object-cover hidden">
                 </div>
-                <input type="hidden" id="prodImageData">
+                <div class="flex-1 min-w-0 space-y-2 w-full">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <label class="text-[11px] font-extrabold text-indigo-700 block">Foto / Gambar Produk (Tampil di Kasir POS)</label>
+                    <span class="text-[10px] font-bold text-slate-400">Mendukung File, Kamera, Screenshot &amp; Ctrl+V</span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <!-- Pilih File Galeri -->
+                    <input type="file" id="prodImageInput" accept="image/*" onchange="handleProductImageChange(this)" class="text-[11px] text-slate-500 max-w-full file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[11px] file:font-extrabold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer">
+                    
+                    <!-- Ambil Foto dari Kamera Perangkat -->
+                    <button type="button" onclick="openProductPhotoCameraModal()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 shadow-sm transition">
+                      <i class="fa-solid fa-camera"></i>
+                      <span>Kamera</span>
+                    </button>
+
+                    <!-- Tempel Gambar dari Clipboard (Ctrl+V) -->
+                    <button type="button" onclick="pasteProductImageFromClipboard()" title="Tempel gambar hasil Screenshot (Win+Shift+S) atau Copy Image dari Clipboard" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 shadow-sm transition">
+                      <i class="fa-solid fa-paste"></i>
+                      <span>Tempel Clipboard (Ctrl+V)</span>
+                    </button>
+
+                    <!-- Screenshot Layar Langsung + Crop Area -->
+                    <button type="button" onclick="openProductScreenshotModal()" title="Tangkap Screenshot layar/tab lain lalu potong (crop) area foto produk" class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 shadow-sm transition">
+                      <i class="fa-solid fa-crop-simple"></i>
+                      <span>Screenshot Layar</span>
+                    </button>
+                  </div>
+                  <input type="hidden" id="prodImageData">
+                </div>
+                <button type="button" id="btnRemoveProdImage" onclick="clearProductImageSelection()" title="Hapus Gambar Produk" class="hidden px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold flex-shrink-0 transition self-end sm:self-center">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
               </div>
-              <button type="button" id="btnRemoveProdImage" onclick="clearProductImageSelection()" title="Hapus Gambar Produk" class="hidden px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold flex-shrink-0 transition self-end sm:self-center">
-                <i class="fa-solid fa-trash"></i>
-              </button>
+
+              <!-- Area Interaktif Paste Clipboard & Drag-Drop Screenshot -->
+              <div id="prodImagePasteZone" tabindex="0"
+                   ondragover="handleProdImageDragOver(event)"
+                   ondragleave="handleProdImageDragLeave(event)"
+                   ondrop="handleProdImageDrop(event)"
+                   onclick="this.focus()"
+                   class="w-full px-3 py-2 rounded-xl border-2 border-dashed border-indigo-200 bg-white/80 hover:border-indigo-400 cursor-pointer flex items-center justify-between gap-2 text-[11px] text-slate-600">
+                <div class="flex items-center gap-2 min-w-0">
+                  <i class="fa-solid fa-clipboard text-indigo-500 flex-shrink-0"></i>
+                  <span id="prodImagePasteStatus" class="truncate font-semibold">Screenshot (Win+Shift+S) / Copy Gambar lalu tekan <b class="text-indigo-700">Ctrl+V</b> di sini, atau seret gambar (Drag &amp; Drop).</span>
+                </div>
+                <span class="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md text-[10px] font-mono font-extrabold flex-shrink-0">Ctrl+V</span>
+              </div>
             </div>
           </div>
 
@@ -3806,6 +3871,57 @@
         <button type="button" onclick="captureProductPhotoFrame()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5">
           <i class="fa-solid fa-camera"></i>
           <span>Jepret &amp; Gunakan Foto</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Screenshot Layar & Crop Area Foto Produk -->
+  <div id="productScreenshotModal" class="fixed inset-0 z-[65] bg-slate-900/90 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-3xl w-full p-4 sm:p-5 space-y-3.5 shadow-2xl border border-slate-200 my-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-base">
+            <i class="fa-solid fa-crop-simple"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base text-slate-800">Screenshot Layar &amp; Potong Foto Produk</h3>
+            <p class="text-[11px] text-slate-500">Seret (drag) pada gambar untuk memilih area produk yang ingin dipotong</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeProductScreenshotModal()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-600 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 text-[11px]">
+        <div class="flex items-center gap-2">
+          <span id="ssCropSizeBadge" class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-md font-mono font-extrabold">Area: Seluruh Layar</span>
+          <span class="text-slate-500 hidden sm:inline">Tarik kotak seleksi pada gambar di bawah untuk crop</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button type="button" onclick="resetScreenshotCropSelection()" class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg font-bold transition flex items-center gap-1">
+            <i class="fa-solid fa-rotate-left text-[10px]"></i> <span>Reset Seleksi</span>
+          </button>
+          <button type="button" onclick="captureScreenForProductPhoto()" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-extrabold transition flex items-center gap-1 shadow-xs">
+            <i class="fa-solid fa-desktop text-[10px]"></i> <span>Ambil Ulang</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="ssCanvasWrapper" class="relative rounded-2xl overflow-hidden bg-slate-950 border-2 border-indigo-500/50 p-2 flex items-center justify-center min-h-[240px]">
+        <canvas id="prodScreenshotCanvas"></canvas>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-2 pt-1">
+        <button type="button" onclick="closeProductScreenshotModal()" class="sm:w-28 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">Batal</button>
+        <button type="button" onclick="applyProductScreenshot(true)" class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-image"></i>
+          <span>Gunakan Seluruh Layar</span>
+        </button>
+        <button type="button" onclick="applyProductScreenshot(false)" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-crop-simple"></i>
+          <span>Potong &amp; Gunakan Foto</span>
         </button>
       </div>
     </div>
@@ -10514,13 +10630,78 @@
       }
     }
 
+    function setProductImageStatusMessage(msg, type = 'default') {
+      const el = document.getElementById('prodImagePasteStatus');
+      if (!el) return;
+      if (type === 'success') {
+        el.innerHTML = `<span class="text-emerald-700 font-extrabold">${msg}</span>`;
+      } else if (type === 'warning') {
+        el.innerHTML = `<span class="text-amber-700 font-extrabold">${msg}</span>`;
+      } else {
+        el.innerHTML = msg;
+      }
+    }
+
+    function compressAndApplyProductImage(blobOrDataUrl, sourceLabel = 'Gambar') {
+      return new Promise((resolve, reject) => {
+        const processDataUrl = (rawDataUrl) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const maxDim = 600;
+              let w = img.naturalWidth || img.width || 400;
+              let h = img.naturalHeight || img.height || 400;
+              if (w > maxDim || h > maxDim) {
+                if (w >= h) {
+                  h = Math.round((h / w) * maxDim);
+                  w = maxDim;
+                } else {
+                  w = Math.round((w / h) * maxDim);
+                  h = maxDim;
+                }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, w, h);
+              ctx.drawImage(img, 0, 0, w, h);
+              const optimized = canvas.toDataURL('image/jpeg', 0.85);
+              const approxKb = Math.max(1, Math.round((optimized.length * 3) / 4 / 1024));
+              setProductImagePreviewUI(optimized);
+              setProductImageStatusMessage(`✓ Foto dimuat dari ${sourceLabel} (${w}×${h}px • ~${approxKb} KB) — Siap tampil di Kasir POS!`, 'success');
+              try { if (typeof playScannerBeep === 'function') playScannerBeep(); } catch (e) {}
+              resolve(optimized);
+            } catch (err) {
+              setProductImagePreviewUI(rawDataUrl);
+              setProductImageStatusMessage(`✓ Foto dimuat dari ${sourceLabel} — Siap tampil di Kasir POS!`, 'success');
+              resolve(rawDataUrl);
+            }
+          };
+          img.onerror = () => {
+            setProductImageStatusMessage('Gagal memproses gambar. Pastikan format gambar valid (PNG/JPG/WebP).', 'warning');
+            reject(new Error('Invalid image'));
+          };
+          img.src = rawDataUrl;
+        };
+
+        if (typeof blobOrDataUrl === 'string') {
+          processDataUrl(blobOrDataUrl);
+        } else if (blobOrDataUrl instanceof Blob) {
+          const reader = new FileReader();
+          reader.onload = (e) => processDataUrl(e.target.result);
+          reader.onerror = () => reject(new Error('FileReader error'));
+          reader.readAsDataURL(blobOrDataUrl);
+        } else {
+          reject(new Error('Unsupported image source'));
+        }
+      });
+    }
+
     function handleProductImageChange(input) {
       if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          setProductImagePreviewUI(e.target.result);
-        };
-        reader.readAsDataURL(input.files[0]);
+        compressAndApplyProductImage(input.files[0], 'File Galeri').catch(() => {});
       }
     }
 
@@ -10528,6 +10709,7 @@
       const fileInp = document.getElementById('prodImageInput');
       if (fileInp) fileInp.value = '';
       setProductImagePreviewUI('');
+      setProductImageStatusMessage('Screenshot (Win+Shift+S) / Copy Gambar lalu tekan <b class="text-indigo-700">Ctrl+V</b> di sini, atau seret gambar (Drag &amp; Drop).', 'default');
     }
 
     /* ---- FITUR SCROLL / AUTO FULLSCREEN MODAL TAMBAH & EDIT BARANG ---- */
@@ -10648,6 +10830,336 @@
     function closeProductPhotoCameraModal() {
       stopProductPhotoStream();
       document.getElementById('productPhotoCameraModal')?.classList.add('hidden');
+    }
+
+    /* ---- FITUR TAMBAH FOTO PRODUK VIA CLIPBOARD (CTRL+V / PASTE) & DRAG-DROP ---- */
+    async function pasteProductImageFromClipboard() {
+      const pasteZone = document.getElementById('prodImagePasteZone');
+      if (pasteZone) pasteZone.focus();
+
+      if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
+        try {
+          const clipboardItems = await navigator.clipboard.read();
+          for (const item of clipboardItems) {
+            const imgType = item.types.find(t => t.startsWith('image/'));
+            if (imgType) {
+              const blob = await item.getType(imgType);
+              await compressAndApplyProductImage(blob, 'Clipboard');
+              return;
+            }
+          }
+          // Cek jika clipboard berisi DataURL gambar teks
+          if (typeof navigator.clipboard.readText === 'function') {
+            const txt = (await navigator.clipboard.readText() || '').trim();
+            if (txt.startsWith('data:image/')) {
+              await compressAndApplyProductImage(txt, 'Clipboard DataURL');
+              return;
+            }
+          }
+          setProductImageStatusMessage('Tidak ada gambar di Clipboard. Ambil screenshot (Win+Shift+S / PrintScreen) atau Copy Gambar terlebih dahulu.', 'warning');
+          showCustomAlert('Clipboard Kosong / Bukan Gambar', 'Belum ada gambar di Clipboard Anda. Silakan ambil screenshot (Win+Shift+S / Snipping Tool) atau klik kanan "Copy Image" pada gambar produk, lalu tekan Ctrl+V atau klik tombol ini lagi.', 'warning');
+          return;
+        } catch (err) {
+          // Pada protokol file:// atau jika izin clipboard ditolak, arahkan langsung ke Ctrl+V native
+          setProductImageStatusMessage('Tekan Ctrl+V sekarang di keyboard (atau tahan lalu Tempel di HP) untuk menempel gambar dari Clipboard!', 'warning');
+          return;
+        }
+      } else {
+        setProductImageStatusMessage('Tekan Ctrl+V sekarang di keyboard untuk menempel gambar hasil Screenshot / Copy Image!', 'warning');
+      }
+    }
+
+    function handleGlobalProductModalPaste(e) {
+      const prodModal = document.getElementById('productModal');
+      if (!prodModal || prodModal.classList.contains('hidden')) return;
+      const cd = e.clipboardData || window.clipboardData;
+      if (!cd) return;
+
+      // Cari gambar dari clipboardData.items
+      if (cd.items && cd.items.length > 0) {
+        for (let i = 0; i < cd.items.length; i++) {
+          const item = cd.items[i];
+          if (item.type && item.type.indexOf('image') !== -1) {
+            const blob = item.getAsFile();
+            if (blob) {
+              e.preventDefault();
+              compressAndApplyProductImage(blob, 'Clipboard (Ctrl+V)').catch(() => {});
+              return;
+            }
+          }
+        }
+      }
+
+      // Fallback dari clipboardData.files
+      if (cd.files && cd.files.length > 0) {
+        for (let i = 0; i < cd.files.length; i++) {
+          if (cd.files[i].type && cd.files[i].type.startsWith('image/')) {
+            e.preventDefault();
+            compressAndApplyProductImage(cd.files[i], 'Clipboard (Ctrl+V)').catch(() => {});
+            return;
+          }
+        }
+      }
+    }
+    document.addEventListener('paste', handleGlobalProductModalPaste);
+
+    function handleProdImageDragOver(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('prodImagePasteZone')?.classList.add('paste-zone-dragover');
+    }
+
+    function handleProdImageDragLeave(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('prodImagePasteZone')?.classList.remove('paste-zone-dragover');
+    }
+
+    function handleProdImageDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('prodImagePasteZone')?.classList.remove('paste-zone-dragover');
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const imgFile = Array.from(files).find(f => f.type && f.type.startsWith('image/'));
+        if (imgFile) {
+          compressAndApplyProductImage(imgFile, 'Drag & Drop').catch(() => {});
+        } else {
+          setProductImageStatusMessage('File yang diseret bukan gambar. Gunakan file PNG/JPG/WebP.', 'warning');
+        }
+      }
+    }
+
+    /* ---- FITUR SCREENSHOT LAYAR LANGSUNG + CROP AREA FOTO PRODUK ---- */
+    let _ssSourceCanvas = null;
+    let _ssCropRect = null; // { x, y, w, h } dalam koordinat kanvas preview
+    let _ssIsDragging = false;
+    let _ssStartPt = { x: 0, y: 0 };
+    let _ssEventsBound = false;
+
+    async function openProductScreenshotModal() {
+      await captureScreenForProductPhoto();
+    }
+
+    async function captureScreenForProductPhoto() {
+      if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+        showCustomAlert(
+          'Screenshot Langsung Tidak Didukung Browser Ini',
+          'Browser perangkat ini (umumnya browser HP) tidak mendukung tangkap layar langsung. Silakan ambil screenshot seperti biasa di perangkat Anda, lalu gunakan tombol "Tempel Clipboard (Ctrl+V)" atau "Pilih File".',
+          'warning'
+        );
+        return;
+      }
+
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'never' },
+          audio: false
+        });
+
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.muted = true;
+        video.playsInline = true;
+
+        await new Promise((resolve, reject) => {
+          video.onloadedmetadata = () => {
+            video.play().then(resolve).catch(reject);
+          };
+          video.onerror = reject;
+        });
+
+        // Tunggu 1-2 frame agar gambar layar ter-render sempurna
+        await new Promise(r => setTimeout(r, 180));
+
+        const srcW = video.videoWidth || 1280;
+        const srcH = video.videoHeight || 720;
+        _ssSourceCanvas = document.createElement('canvas');
+        _ssSourceCanvas.width = srcW;
+        _ssSourceCanvas.height = srcH;
+        const srcCtx = _ssSourceCanvas.getContext('2d');
+        srcCtx.drawImage(video, 0, 0, srcW, srcH);
+
+        // Hentikan screen-share segera setelah frame berhasil diambil
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+
+        // Tampilkan modal crop
+        const modal = document.getElementById('productScreenshotModal');
+        if (modal) modal.classList.remove('hidden');
+
+        _ssCropRect = null;
+        initScreenshotPreviewCanvas();
+      } catch (err) {
+        if (stream) {
+          try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+        }
+        // Abaikan jika user menekan Batal pada dialog pilih layar browser
+        if (err && (err.name === 'NotAllowedError' || err.name === 'AbortError')) {
+          return;
+        }
+        showCustomAlert('Gagal Mengambil Screenshot', 'Tidak dapat menangkap layar. Anda tetap bisa mengambil screenshot manual (Win+Shift+S) lalu tekan Ctrl+V di modal produk.', 'warning');
+      }
+    }
+
+    function initScreenshotPreviewCanvas() {
+      const canvas = document.getElementById('prodScreenshotCanvas');
+      if (!canvas || !_ssSourceCanvas) return;
+
+      const maxPreviewW = 900;
+      const scale = Math.min(1, maxPreviewW / _ssSourceCanvas.width);
+      canvas.width = Math.round(_ssSourceCanvas.width * scale);
+      canvas.height = Math.round(_ssSourceCanvas.height * scale);
+
+      bindScreenshotCanvasEvents(canvas);
+      renderScreenshotCropOverlay();
+    }
+
+    function bindScreenshotCanvasEvents(canvas) {
+      if (_ssEventsBound) return;
+      _ssEventsBound = true;
+
+      const getCanvasPos = (clientX, clientY) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+          x: Math.max(0, Math.min(canvas.width, (clientX - rect.left) * scaleX)),
+          y: Math.max(0, Math.min(canvas.height, (clientY - rect.top) * scaleY))
+        };
+      };
+
+      const startDrag = (clientX, clientY) => {
+        _ssIsDragging = true;
+        _ssStartPt = getCanvasPos(clientX, clientY);
+        _ssCropRect = { x: _ssStartPt.x, y: _ssStartPt.y, w: 0, h: 0 };
+        renderScreenshotCropOverlay();
+      };
+
+      const moveDrag = (clientX, clientY) => {
+        if (!_ssIsDragging) return;
+        const pt = getCanvasPos(clientX, clientY);
+        _ssCropRect = {
+          x: Math.min(_ssStartPt.x, pt.x),
+          y: Math.min(_ssStartPt.y, pt.y),
+          w: Math.abs(pt.x - _ssStartPt.x),
+          h: Math.abs(pt.y - _ssStartPt.y)
+        };
+        renderScreenshotCropOverlay();
+      };
+
+      const endDrag = () => {
+        if (!_ssIsDragging) return;
+        _ssIsDragging = false;
+        if (_ssCropRect && (_ssCropRect.w < 10 || _ssCropRect.h < 10)) {
+          _ssCropRect = null;
+        }
+        renderScreenshotCropOverlay();
+      };
+
+      canvas.addEventListener('mousedown', (e) => startDrag(e.clientX, e.clientY));
+      window.addEventListener('mousemove', (e) => { if (_ssIsDragging) moveDrag(e.clientX, e.clientY); });
+      window.addEventListener('mouseup', () => endDrag());
+
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches[0]) {
+          e.preventDefault();
+          startDrag(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+      canvas.addEventListener('touchmove', (e) => {
+        if (_ssIsDragging && e.touches && e.touches[0]) {
+          e.preventDefault();
+          moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+      canvas.addEventListener('touchend', () => endDrag());
+    }
+
+    function renderScreenshotCropOverlay() {
+      const canvas = document.getElementById('prodScreenshotCanvas');
+      const badge = document.getElementById('ssCropSizeBadge');
+      if (!canvas || !_ssSourceCanvas) return;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(_ssSourceCanvas, 0, 0, canvas.width, canvas.height);
+
+      if (_ssCropRect && _ssCropRect.w > 4 && _ssCropRect.h > 4) {
+        // Gelapkan area di luar seleksi
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.58)';
+        ctx.fillRect(0, 0, canvas.width, _ssCropRect.y);
+        ctx.fillRect(0, _ssCropRect.y + _ssCropRect.h, canvas.width, canvas.height - (_ssCropRect.y + _ssCropRect.h));
+        ctx.fillRect(0, _ssCropRect.y, _ssCropRect.x, _ssCropRect.h);
+        ctx.fillRect(_ssCropRect.x + _ssCropRect.w, _ssCropRect.y, canvas.width - (_ssCropRect.x + _ssCropRect.w), _ssCropRect.h);
+
+        // Garis tepi area crop
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(_ssCropRect.x, _ssCropRect.y, _ssCropRect.w, _ssCropRect.h);
+        ctx.setLineDash([]);
+
+        // Sudut pegangan kecil
+        ctx.fillStyle = '#f59e0b';
+        const hs = 7;
+        const corners = [
+          [_ssCropRect.x, _ssCropRect.y],
+          [_ssCropRect.x + _ssCropRect.w, _ssCropRect.y],
+          [_ssCropRect.x, _ssCropRect.y + _ssCropRect.h],
+          [_ssCropRect.x + _ssCropRect.w, _ssCropRect.y + _ssCropRect.h]
+        ];
+        corners.forEach(([cx, cy]) => {
+          ctx.fillRect(cx - hs / 2, cy - hs / 2, hs, hs);
+        });
+        ctx.restore();
+
+        const ratioX = _ssSourceCanvas.width / canvas.width;
+        const ratioY = _ssSourceCanvas.height / canvas.height;
+        const realW = Math.round(_ssCropRect.w * ratioX);
+        const realH = Math.round(_ssCropRect.h * ratioY);
+        if (badge) badge.innerText = `Area Crop: ${realW} × ${realH} px`;
+      } else {
+        if (badge) badge.innerText = `Area: Seluruh Layar (${_ssSourceCanvas.width} × ${_ssSourceCanvas.height} px)`;
+      }
+    }
+
+    function resetScreenshotCropSelection() {
+      _ssCropRect = null;
+      renderScreenshotCropOverlay();
+    }
+
+    async function applyProductScreenshot(useFullScreen = false) {
+      const canvas = document.getElementById('prodScreenshotCanvas');
+      if (!canvas || !_ssSourceCanvas) return;
+
+      let sx = 0, sy = 0, sw = _ssSourceCanvas.width, sh = _ssSourceCanvas.height;
+      if (!useFullScreen && _ssCropRect && _ssCropRect.w >= 10 && _ssCropRect.h >= 10) {
+        const ratioX = _ssSourceCanvas.width / canvas.width;
+        const ratioY = _ssSourceCanvas.height / canvas.height;
+        sx = Math.round(_ssCropRect.x * ratioX);
+        sy = Math.round(_ssCropRect.y * ratioY);
+        sw = Math.max(10, Math.round(_ssCropRect.w * ratioX));
+        sh = Math.max(10, Math.round(_ssCropRect.h * ratioY));
+      }
+
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = sw;
+      cropCanvas.height = sh;
+      const cropCtx = cropCanvas.getContext('2d');
+      cropCtx.drawImage(_ssSourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+
+      const rawDataUrl = cropCanvas.toDataURL('image/png');
+      await compressAndApplyProductImage(rawDataUrl, useFullScreen ? 'Screenshot Layar' : 'Screenshot Crop');
+      closeProductScreenshotModal();
+    }
+
+    function closeProductScreenshotModal() {
+      document.getElementById('productScreenshotModal')?.classList.add('hidden');
+      _ssCropRect = null;
+      _ssIsDragging = false;
     }
 
     /* ---- FITUR TAMBAH BARIS / KOLOM DINAMIS HARGA MULTI-SATUAN ---- */
