@@ -97,6 +97,8 @@
     .offline-no-fa .fa-sync::before, .offline-no-fa .fa-arrows-rotate::before, .offline-no-fa .fa-rotate::before { content: "↻"; }
     .offline-no-fa .fa-hard-drive::before, .offline-no-fa .fa-database::before { content: "💾"; }
     .offline-no-fa .fa-bars::before, .offline-no-fa .fa-grip::before { content: "☰"; }
+    .offline-no-fa .fa-book-open::before { content: "📖"; }
+    .offline-no-fa .fa-file-pdf::before { content: "📄"; }
   </style>
 
   <style>
@@ -778,6 +780,11 @@
           <span class="text-[10px] md:text-sm mt-1 md:mt-0">Produk/Stok</span>
         </button>
 
+        <button onclick="switchTab('catalog')" id="nav-catalog" class="nav-btn w-full flex flex-col md:flex-row items-center md:space-x-3 p-2 md:px-3 md:py-2.5 rounded-xl font-semibold text-xs md:text-sm hover:bg-slate-100 text-slate-600">
+          <i class="fa-solid fa-book-open md:w-5 text-center text-base md:text-lg text-indigo-600"></i>
+          <span class="text-[10px] md:text-sm mt-1 md:mt-0">Katalog Barang</span>
+        </button>
+
         <button onclick="switchTab('expired')" id="nav-expired" class="nav-btn w-full hidden md:flex items-center space-x-3 px-3 py-2.5 rounded-xl font-semibold text-sm text-slate-600 hover:bg-slate-100 relative">
           <i class="fa-solid fa-triangle-exclamation w-5 text-center text-lg text-amber-500"></i>
           <span>Expired Monitor</span>
@@ -842,6 +849,10 @@
       </div>
       <div id="mobileSecondaryNav" class="hidden md:hidden mt-2 space-y-1 bg-slate-50 p-2 rounded-xl border border-slate-200">
         <button onclick="switchTab('cashclose'); toggleMobileSecondaryNav()" class="w-full text-left p-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 rounded-lg flex items-center gap-1.5"><i class="fa-solid fa-calculator"></i> Kalkulator Tutup Kasir</button>
+        <button onclick="switchTab('catalog'); toggleMobileSecondaryNav()" class="w-full text-left p-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 rounded-lg flex justify-between items-center">
+          <span><i class="fa-solid fa-book-open mr-1"></i> Katalog Barang (2 PDF)</span>
+          <span class="bg-indigo-600 text-white text-[10px] px-1.5 rounded-full">PDF</span>
+        </button>
         <button onclick="switchTab('expired'); toggleMobileSecondaryNav()" class="w-full text-left p-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100 rounded-lg flex justify-between items-center">
           <span>Expired Monitor</span>
           <span id="mobileExpiredBadge" class="bg-rose-500 text-white text-[10px] px-1.5 rounded-full hidden">0</span>
@@ -1732,6 +1743,10 @@
               <i class="fa-solid fa-tags"></i>
               <span>Cetak Label Rak</span>
             </button>
+            <button type="button" onclick="switchTab('catalog')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded-xl font-bold flex items-center space-x-1.5 shadow-sm">
+              <i class="fa-solid fa-file-pdf"></i>
+              <span>Katalog 2 PDF</span>
+            </button>
             <label class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-2 rounded-xl font-bold cursor-pointer flex items-center space-x-1.5">
               <i class="fa-solid fa-file-excel"></i>
               <span>Import .xlsx</span>
@@ -1977,6 +1992,136 @@
               </thead>
               <tbody id="stockLogsTableBody" class="divide-y divide-slate-100"><tr><td colspan="6" class="p-6 text-center text-slate-400 text-xs">Belum ada riwayat mutasi stok.</td></tr></tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3.5. KATALOG BARANG ECERAN & GROSIRAN (2 FILE PDF) ================= -->
+      <section id="tab-catalog" class="tab-content flex-1 hidden flex-col space-y-4">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
+          <div class="tab-inner-title-block hidden">
+            <h2 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-book-open text-indigo-600"></i> Katalog Barang Eceran &amp; Grosiran (2 File PDF)
+            </h2>
+            <p class="text-xs text-slate-500">Buat &amp; unduh 2 file PDF terpisah (Eceran &amp; Grosiran) lengkap dengan Foto Barang, Barcode Scannable, dan Daftar Harga.</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <button type="button" id="btnExportBothCatalogPdf" onclick="exportBothCatalogPdfs()" class="flex-1 sm:flex-none bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-xs px-4 py-2.5 rounded-xl font-extrabold flex items-center justify-center gap-2 shadow-md transition">
+              <i class="fa-solid fa-file-pdf text-amber-300"></i>
+              <span>Unduh 2 File PDF (Eceran &amp; Grosir)</span>
+            </button>
+            <button type="button" id="btnExportRetailCatalogPdf" onclick="exportCatalogPdf('eceran')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3.5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm transition">
+              <i class="fa-solid fa-file-pdf"></i>
+              <span>PDF Eceran</span>
+            </button>
+            <button type="button" id="btnExportWholesaleCatalogPdf" onclick="exportCatalogPdf('grosir')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm transition">
+              <i class="fa-solid fa-file-pdf"></i>
+              <span>PDF Grosiran</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Progress Bar Export PDF -->
+        <div id="catalogPdfProgressBox" class="hidden bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 space-y-2 shadow-xs">
+          <div class="flex items-center justify-between text-xs font-extrabold text-indigo-900">
+            <span id="catalogPdfProgressLabel" class="flex items-center gap-2">
+              <i class="fa-solid fa-spinner fa-spin text-indigo-600"></i>
+              <span>Menyiapkan file PDF Katalog...</span>
+            </span>
+            <span id="catalogPdfProgressPct" class="font-mono text-indigo-700">0%</span>
+          </div>
+          <div class="w-full h-2 bg-indigo-100 rounded-full overflow-hidden">
+            <div id="catalogPdfProgressBar" class="h-full bg-gradient-to-r from-indigo-600 to-emerald-500 rounded-full transition-all duration-200" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Ringkasan Katalog & Mode Preview Eceran / Grosiran -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 p-3.5 rounded-2xl flex items-center justify-between">
+            <div>
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 block">Total Barang di Katalog</span>
+              <div id="catalogSummaryTotalItems" class="text-xl font-black text-indigo-950 mt-0.5">0 Produk</div>
+              <span class="text-[10px] text-slate-500">Sesuai filter kategori &amp; stok</span>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-indigo-600/10 text-indigo-600 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-boxes-stacked"></i>
+            </div>
+          </div>
+
+          <div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center justify-between">
+            <div>
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">Estimasi Halaman PDF (A4)</span>
+              <div id="catalogSummaryEstPages" class="text-xl font-black text-emerald-950 mt-0.5">1 Halaman</div>
+              <span id="catalogSummaryLayoutDesc" class="text-[10px] text-emerald-700 font-semibold">Grid 3×3 (9 barang / halaman)</span>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-600/10 text-emerald-600 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-file-pdf"></i>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 p-3.5 rounded-2xl flex flex-col justify-between gap-2">
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">Mode Preview Katalog</span>
+            <div class="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button type="button" id="catalogModeBtnEceran" onclick="setCatalogPreviewMode('eceran')" class="py-1.5 px-2.5 rounded-lg bg-blue-600 text-white text-xs font-extrabold shadow-sm transition">
+                Katalog Eceran
+              </button>
+              <button type="button" id="catalogModeBtnGrosir" onclick="setCatalogPreviewMode('grosir')" class="py-1.5 px-2.5 rounded-lg text-slate-600 hover:text-slate-900 text-xs font-bold transition">
+                Katalog Grosiran
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bar Filter & Pengaturan Layout PDF -->
+        <div class="bg-slate-50/90 border border-slate-200 rounded-2xl p-3 flex flex-col xl:flex-row gap-2.5 items-stretch xl:items-center justify-between">
+          <div class="flex-1 flex flex-col sm:flex-row gap-2">
+            <div class="relative flex-1">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+              <input type="text" id="catalogSearchInput" oninput="currentCatalogPage = 1; renderCatalogPreview()" placeholder="Cari nama barang, barcode/SKU, atau No. Rak..." class="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <select id="catalogCategoryFilter" onchange="currentCatalogPage = 1; renderCatalogPreview()" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700">
+              <option value="">Semua Kategori</option>
+            </select>
+            <select id="catalogRackFilter" onchange="currentCatalogPage = 1; renderCatalogPreview()" class="bg-amber-50/90 border border-amber-200 rounded-xl px-3 py-2 text-xs font-extrabold text-amber-900">
+              <option value="">Semua No. Rak</option>
+            </select>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2.5 justify-between sm:justify-end">
+            <select id="catalogPdfLayoutSelect" onchange="renderCatalogPreview()" title="Jumlah produk per halaman PDF A4" class="bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-extrabold text-indigo-800">
+              <option value="3x3" selected="">PDF 3×3 (9 / Hal • Foto Besar)</option>
+              <option value="3x4">PDF 3×4 (12 / Hal • Padat)</option>
+            </select>
+            <label class="inline-flex items-center gap-1.5 bg-white px-2.5 py-2 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-700 cursor-pointer select-none">
+              <input type="checkbox" id="catalogInStockOnly" onchange="currentCatalogPage = 1; renderCatalogPreview()" class="w-3.5 h-3.5 text-indigo-600 rounded">
+              <span>Hanya Stok &gt; 0</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 bg-white px-2.5 py-2 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-700 cursor-pointer select-none">
+              <input type="checkbox" id="catalogIncludeMultiUnit" onchange="renderCatalogPreview()" checked="" class="w-3.5 h-3.5 text-indigo-600 rounded">
+              <span>Harga Multi-Satuan</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Grid Preview Katalog Barang -->
+        <div id="catalogPreviewGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 flex-1">
+          <div class="col-span-full p-10 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+            Memuat katalog barang...
+          </div>
+        </div>
+
+        <!-- Pagination Preview Katalog -->
+        <div class="pt-2.5 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 bg-slate-50/90 px-3 py-2 rounded-xl border border-slate-200/80">
+          <span class="text-xs text-slate-600 font-bold" id="catalogPageInfo">Menampilkan 0 produk</span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="prevCatalogPage()" id="btnPrevCatalogPage" class="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition" disabled="">
+              <i class="fa-solid fa-chevron-left mr-1 text-[10px]"></i>Sebelumnya
+            </button>
+            <div id="catalogPageNumbers" class="flex items-center gap-1"></div>
+            <button type="button" onclick="nextCatalogPage()" id="btnNextCatalogPage" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition shadow-xs">
+              Selanjutnya<i class="fa-solid fa-chevron-right ml-1 text-[10px]"></i>
+            </button>
           </div>
         </div>
       </section>
@@ -7201,6 +7346,10 @@
         Promise.resolve(populateProductCategoryFilter()),
         Promise.resolve(renderProductTable())
       ]),
+      catalog: () => Promise.all([
+        Promise.resolve(populateProductCategoryFilter()),
+        Promise.resolve(renderCatalogPreview())
+      ]),
       expired: () => Promise.resolve(renderExpiredTable()),
       purchases: () => Promise.resolve(renderPurchaseTable()),
       suppliers: () => Promise.resolve(renderSupplierTable()),
@@ -7444,6 +7593,24 @@
           </button>
           <button type="button" onclick="openStockOpnameModal()" class="bg-white/15 hover:bg-white/25 text-white px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border border-white/20 transition">
             <i class="fa-solid fa-clipboard-check text-amber-300"></i> <span class="hidden sm:inline">Stock Opname</span>
+          </button>
+        `
+      },
+      'catalog': {
+        title: 'Katalog Barang Eceran & Grosiran (2 File PDF)',
+        subtitle: 'Preview dan unduh 2 file PDF Katalog Barang (Eceran & Grosiran) lengkap dengan Foto, Barcode & Harga.',
+        icon: 'fa-solid fa-book-open',
+        badge: 'Katalog 2 PDF',
+        headerBg: 'from-blue-700 to-indigo-900',
+        actionsHtml: `
+          <button type="button" onclick="exportBothCatalogPdfs()" class="bg-amber-400 hover:bg-amber-300 text-slate-900 px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition">
+            <i class="fa-solid fa-file-pdf"></i> <span>Unduh 2 PDF</span>
+          </button>
+          <button type="button" onclick="exportCatalogPdf('eceran')" class="bg-white/15 hover:bg-white/25 text-white px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border border-white/20 transition">
+            <span>Eceran</span>
+          </button>
+          <button type="button" onclick="exportCatalogPdf('grosir')" class="bg-emerald-500/90 hover:bg-emerald-600 text-white px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border border-white/20 transition">
+            <span>Grosiran</span>
           </button>
         `
       },
@@ -7745,7 +7912,7 @@
         const spanText = activeNav?.querySelector('span')?.innerText?.trim();
         const tabLabels = {
           dashboard: 'Dashboard', pos: 'Kasir (POS)', cashclose: 'Tutup Kasir',
-          history: 'Riwayat', products: 'Produk/Stok', expired: 'Expired Monitor',
+          history: 'Riwayat', products: 'Produk/Stok', catalog: 'Katalog Barang', expired: 'Expired Monitor',
           purchases: 'Pembelian (PO)', suppliers: 'Supplier', customers: 'Pelanggan',
           debts: 'Hutang / Piutang', reports: 'Laporan', users: 'Akun User',
           settings: 'Pengaturan', network: 'Jaringan LAN', 'active-license': 'Lisensi Aktif'
@@ -8188,7 +8355,7 @@
     async function populateProductCategoryFilter() {
       const products = await getAll('products');
       const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
-      ['productCategoryFilter', 'expiredCategoryFilter'].forEach(selId => {
+      ['productCategoryFilter', 'expiredCategoryFilter', 'catalogCategoryFilter'].forEach(selId => {
         const select = document.getElementById(selId);
         if (!select) return;
         const currentVal = select.value;
@@ -8203,7 +8370,7 @@
       const customRacks = products.map(p => getProductRackDisplay(p)).filter(Boolean);
       const allRacks = [...new Set([...defaultRacks, ...customRacks])];
 
-      ['productRackFilter', 'expiredRackFilter'].forEach(rackSelId => {
+      ['productRackFilter', 'expiredRackFilter', 'catalogRackFilter'].forEach(rackSelId => {
         const rackSelect = document.getElementById(rackSelId);
         if (!rackSelect) return;
         const prevRack = rackSelect.value;
@@ -18673,6 +18840,830 @@ server.listen(PORT, '127.0.0.1', () => {
 setTimeout(() => {
   restoreSavedLocalDiskHandlesOnStartup();
 }, 500);
+
+
+/* ================= FITUR 7: KATALOG BARANG ECERAN & GROSIRAN (2 FILE PDF BESERTA FOTO, BARCODE & HARGA) ================= */
+let catalogPreviewMode = 'eceran'; // 'eceran' | 'grosir'
+let currentCatalogPage = 1;
+let isExportingCatalogPdf = false;
+
+// Tabel pola resmi Code 128 (107 simbol: 0..106) agar barcode 100% terbaca scanner fisik & kamera HP
+const CODE128_PATTERNS = [
+  '212222','222122','222221','121223','121322','131222','122213','122312','132212','221213',
+  '221312','231212','112232','122132','122231','113222','123122','123221','223211','221132',
+  '221231','213212','223112','312131','311222','321122','321221','312212','322112','322211',
+  '212123','212321','232121','111323','131123','131321','112313','132113','132311','211313',
+  '231113','231311','112133','112331','132131','113123','113321','133121','313121','211331',
+  '231131','213113','213311','213131','311123','311321','331121','312113','312311','332111',
+  '314111','221411','431111','111224','111422','121124','121421','141122','141221','112214',
+  '112412','122114','122411','142112','142211','241211','221114','413111','241112','134111',
+  '111242','121142','121241','114212','124112','124211','411212','421112','421211','212141',
+  '214121','412121','111143','111341','131141','114113','114311','411113','411311','113141',
+  '114131','311141','411131','211412','211214','211232','2331112'
+];
+
+function encodeCode128B(rawText) {
+  let clean = String(rawText || '000000').trim();
+  if (!clean) clean = '000000';
+  // Filter ke karakter ASCII printable 32..126 yang valid di Code 128B
+  let safe = '';
+  for (let i = 0; i < clean.length; i++) {
+    const code = clean.charCodeAt(i);
+    if (code >= 32 && code <= 126) safe += clean[i];
+  }
+  if (!safe) safe = '000000';
+
+  const codes = [104]; // Start Code B
+  let checksum = 104;
+  for (let i = 0; i < safe.length; i++) {
+    const val = safe.charCodeAt(i) - 32;
+    codes.push(val);
+    checksum += val * (i + 1);
+  }
+  codes.push(checksum % 103);
+  codes.push(106); // Stop Code
+
+  let bits = '';
+  for (let c = 0; c < codes.length; c++) {
+    const pat = CODE128_PATTERNS[codes[c]] || CODE128_PATTERNS[0];
+    for (let j = 0; j < pat.length; j++) {
+      const w = parseInt(pat[j], 10);
+      bits += (j % 2 === 0 ? '1' : '0').repeat(w);
+    }
+  }
+  return { bits, text: safe };
+}
+
+function generateCode128Svg(rawText) {
+  const { bits, text } = encodeCode128B(rawText);
+  const quiet = 10;
+  const totalW = bits.length + quiet * 2;
+  let rects = '';
+  let i = 0;
+  while (i < bits.length) {
+    if (bits[i] === '1') {
+      let run = 1;
+      while (i + run < bits.length && bits[i + run] === '1') run++;
+      rects += `<rect x="${quiet + i}" y="2" width="${run}" height="28" fill="#0f172a"/>`;
+      i += run;
+    } else {
+      i++;
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalW} 42" width="100%" height="40" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges">
+    <rect width="${totalW}" height="42" fill="#ffffff"/>
+    ${rects}
+    <text x="${totalW / 2}" y="39" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="700" font-size="8.5" fill="#0f172a">${escapeHtml(text)}</text>
+  </svg>`;
+}
+
+function drawCode128OnCanvas(ctx, rawText, x, y, width, height) {
+  const { bits, text } = encodeCode128B(rawText);
+  const quietModules = 10;
+  const totalModules = bits.length + quietModules * 2;
+  const modW = width / totalModules;
+  const barH = Math.max(22, height - 18);
+
+  // White quiet-zone background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x, y, width, height);
+
+  // Crisp barcode bars
+  ctx.fillStyle = '#000000';
+  let i = 0;
+  while (i < bits.length) {
+    if (bits[i] === '1') {
+      let run = 1;
+      while (i + run < bits.length && bits[i + run] === '1') run++;
+      ctx.fillRect(x + (quietModules + i) * modW, y + 3, Math.max(1, run * modW), barH);
+      i += run;
+    } else {
+      i++;
+    }
+  }
+
+  // Human-readable barcode text
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '700 13px "JetBrains Mono", "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(text, x + width / 2, y + barH + 5);
+}
+
+function setCatalogPreviewMode(mode) {
+  catalogPreviewMode = (mode === 'grosir') ? 'grosir' : 'eceran';
+  const btnE = document.getElementById('catalogModeBtnEceran');
+  const btnG = document.getElementById('catalogModeBtnGrosir');
+  if (btnE && btnG) {
+    if (catalogPreviewMode === 'eceran') {
+      btnE.className = 'py-1.5 px-2.5 rounded-lg bg-blue-600 text-white text-xs font-extrabold shadow-sm transition';
+      btnG.className = 'py-1.5 px-2.5 rounded-lg text-slate-600 hover:text-slate-900 text-xs font-bold transition';
+    } else {
+      btnG.className = 'py-1.5 px-2.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold shadow-sm transition';
+      btnE.className = 'py-1.5 px-2.5 rounded-lg text-slate-600 hover:text-slate-900 text-xs font-bold transition';
+    }
+  }
+  renderCatalogPreview();
+}
+
+function getCatalogLayoutConfig() {
+  const val = document.getElementById('catalogPdfLayoutSelect')?.value || '3x3';
+  if (val === '3x4') {
+    return { cols: 3, rows: 4, perPage: 12, label: 'Grid 3×4 (12 barang / halaman)' };
+  }
+  return { cols: 3, rows: 3, perPage: 9, label: 'Grid 3×3 (9 barang / halaman)' };
+}
+
+async function getFilteredCatalogProducts() {
+  const products = await getAll('products');
+  const q = (document.getElementById('catalogSearchInput')?.value || '').toLowerCase().trim();
+  const selectedCat = document.getElementById('catalogCategoryFilter')?.value || '';
+  const selectedRack = document.getElementById('catalogRackFilter')?.value || '';
+  const inStockOnly = document.getElementById('catalogInStockOnly')?.checked === true;
+
+  return products.filter(p => {
+    const rackStr = getProductRackDisplay(p);
+    const matchQ = !q || productMatchesBarcodeOrQuery(p, q);
+    const matchC = selectedCat === '' || p.category === selectedCat;
+    const matchR = selectedRack === '' || (selectedRack === '__EMPTY__' ? rackStr === '' : rackStr === selectedRack);
+    const matchStock = !inStockOnly || (parseFloat(p.stock) || 0) > 0;
+    return matchQ && matchC && matchR && matchStock;
+  });
+}
+
+function prevCatalogPage() {
+  if (currentCatalogPage > 1) {
+    currentCatalogPage--;
+    renderCatalogPreview();
+  }
+}
+
+function nextCatalogPage() {
+  currentCatalogPage++;
+  renderCatalogPreview();
+}
+
+function goToCatalogPage(p) {
+  currentCatalogPage = p;
+  renderCatalogPreview();
+}
+
+async function renderCatalogPreview() {
+  const filtered = await getFilteredCatalogProducts();
+  const layout = getCatalogLayoutConfig();
+  const includeMulti = document.getElementById('catalogIncludeMultiUnit')?.checked !== false;
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / layout.perPage));
+  if (currentCatalogPage > totalPages) currentCatalogPage = totalPages;
+  if (currentCatalogPage < 1) currentCatalogPage = 1;
+
+  const sumItemsEl = document.getElementById('catalogSummaryTotalItems');
+  const sumPagesEl = document.getElementById('catalogSummaryEstPages');
+  const sumDescEl = document.getElementById('catalogSummaryLayoutDesc');
+  if (sumItemsEl) sumItemsEl.innerText = `${filtered.length.toLocaleString('id-ID')} Produk`;
+  if (sumPagesEl) sumPagesEl.innerText = `${totalPages} Halaman`;
+  if (sumDescEl) sumDescEl.innerText = layout.label;
+
+  const grid = document.getElementById('catalogPreviewGrid');
+  if (!grid) return;
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="col-span-full p-10 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-300">Belum ada produk yang cocok dengan filter katalog. Silakan tambahkan barang di menu Produk/Stok terlebih dahulu.</div>`;
+    if (document.getElementById('catalogPageInfo')) document.getElementById('catalogPageInfo').innerText = 'Menampilkan 0 produk';
+    if (document.getElementById('btnPrevCatalogPage')) document.getElementById('btnPrevCatalogPage').disabled = true;
+    if (document.getElementById('btnNextCatalogPage')) document.getElementById('btnNextCatalogPage').disabled = true;
+    if (document.getElementById('catalogPageNumbers')) document.getElementById('catalogPageNumbers').innerHTML = '';
+    return;
+  }
+
+  const startIdx = (currentCatalogPage - 1) * layout.perPage;
+  const endIdx = startIdx + layout.perPage;
+  const pageItems = filtered.slice(startIdx, endIdx);
+  const isGrosir = catalogPreviewMode === 'grosir';
+
+  grid.innerHTML = pageItems.map(p => {
+    const imgSrc = getProductVisualSrc(p);
+    const rackVal = getProductRackDisplay(p);
+    const basePrice = isGrosir
+      ? (parseFloat(p.priceWholesale) > 0 ? parseFloat(p.priceWholesale) : (parseFloat(p.priceRetail) || 0))
+      : (parseFloat(p.priceRetail) || 0);
+    const units = getAllUnitsOfProduct(p);
+    const extraUnitsHtml = (includeMulti && units.length > 1)
+      ? `<div class="mt-2 pt-1.5 border-t border-slate-100 space-y-0.5 text-[10px]">
+          ${units.slice(1, 3).map(u => {
+            const uPrice = isGrosir ? (u.priceWholesale || u.priceRetail || 0) : (u.priceRetail || 0);
+            return `<div class="flex items-center justify-between text-slate-600">
+              <span class="font-bold truncate">${escapeHtml(u.name)} <span class="text-slate-400 font-normal">(isi ${u.qty})</span></span>
+              <span class="font-extrabold ${isGrosir ? 'text-emerald-700' : 'text-blue-700'}">Rp ${uPrice.toLocaleString('id-ID')}</span>
+            </div>`;
+          }).join('')}
+        </div>`
+      : '';
+
+    return `
+      <div class="bg-white border ${isGrosir ? 'border-emerald-200' : 'border-blue-200'} rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition flex flex-col justify-between">
+        <div>
+          <div class="relative h-32 bg-slate-100 overflow-hidden border-b border-slate-100">
+            <img src="${imgSrc}" alt="${escapeHtml(p.name)}" class="w-full h-full object-cover" loading="lazy">
+            <div class="absolute top-2 left-2 right-2 flex items-center justify-between gap-1">
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-white/95 text-slate-700 shadow-xs truncate max-w-[60%]">${escapeHtml(p.category || 'Umum')}</span>
+              ${rackVal ? `<span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-100/95 text-amber-900 border border-amber-300 shadow-xs">${escapeHtml(rackVal)}</span>` : ''}
+            </div>
+            <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold ${(p.stock || 0) <= 5 ? 'bg-rose-600 text-white' : 'bg-slate-900/75 text-white'}">
+              Stok: ${p.stock || 0} ${escapeHtml(p.unit || 'Pcs')}
+            </span>
+          </div>
+
+          <div class="p-3">
+            <h4 class="font-extrabold text-xs sm:text-sm text-slate-800 leading-snug line-clamp-2 min-h-[34px]" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</h4>
+
+            <!-- Harga Barang -->
+            <div class="mt-2 p-2 rounded-xl border ${isGrosir ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'}">
+              <div class="flex items-center justify-between">
+                <span class="text-[9px] font-black uppercase tracking-wider ${isGrosir ? 'text-emerald-700' : 'text-blue-700'}">
+                  ${isGrosir ? 'HARGA GROSIRAN' : 'HARGA ECERAN'}
+                </span>
+                ${isGrosir ? `<span class="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-600 text-white">Min. ${p.minWholesale || 1} ${escapeHtml(p.unit || 'Pcs')}</span>` : `<span class="text-[9px] font-bold text-slate-500">/${escapeHtml(p.unit || 'Pcs')}</span>`}
+              </div>
+              <div class="text-base sm:text-lg font-black ${isGrosir ? 'text-emerald-900' : 'text-blue-900'} mt-0.5">
+                Rp ${basePrice.toLocaleString('id-ID')} <span class="text-[10px] font-bold text-slate-500">/${escapeHtml(p.unit || 'Pcs')}</span>
+              </div>
+            </div>
+            ${extraUnitsHtml}
+          </div>
+        </div>
+
+        <!-- Barcode Scannable -->
+        <div class="px-3 pb-3 pt-1">
+          <div class="bg-white border border-slate-200 rounded-xl p-1.5">
+            ${generateCode128Svg(p.sku)}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const currentEnd = Math.min(endIdx, filtered.length);
+  if (document.getElementById('catalogPageInfo')) {
+    document.getElementById('catalogPageInfo').innerText = `Menampilkan ${startIdx + 1}-${currentEnd} dari ${filtered.length} produk (Hal ${currentCatalogPage}/${totalPages})`;
+  }
+  if (document.getElementById('btnPrevCatalogPage')) document.getElementById('btnPrevCatalogPage').disabled = currentCatalogPage === 1;
+  if (document.getElementById('btnNextCatalogPage')) document.getElementById('btnNextCatalogPage').disabled = currentCatalogPage === totalPages;
+  renderUnifiedPaginationNumbers('catalogPageNumbers', currentCatalogPage, totalPages, 'goToCatalogPage');
+}
+
+/* ---- Canvas Helpers for High-Resolution A4 PDF Rendering (100% Offline) ---- */
+function loadCatalogImageAsync(src) {
+  return new Promise((resolve) => {
+    if (!src) { resolve(null); return; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    let done = false;
+    const finish = (val) => { if (!done) { done = true; resolve(val); } };
+    const timer = setTimeout(() => finish(null), 2500);
+    img.onload = () => { clearTimeout(timer); finish(img); };
+    img.onerror = () => { clearTimeout(timer); finish(null); };
+    img.src = src;
+  });
+}
+
+function drawCanvasRoundRect(ctx, x, y, w, h, r) {
+  const rad = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.lineTo(x + w - rad, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+  ctx.lineTo(x + w, y + h - rad);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+  ctx.lineTo(x + rad, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+  ctx.lineTo(x, y + rad);
+  ctx.quadraticCurveTo(x, y, x + rad, y);
+  ctx.closePath();
+}
+
+function drawWrappedCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+  const words = String(text || '').split(/\s+/);
+  const lines = [];
+  let current = '';
+  for (let i = 0; i < words.length; i++) {
+    const test = current ? (current + ' ' + words[i]) : words[i];
+    if (ctx.measureText(test).width > maxWidth && current) {
+      lines.push(current);
+      current = words[i];
+      if (lines.length >= maxLines) break;
+    } else {
+      current = test;
+    }
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  if (lines.length === maxLines && words.length > 0) {
+    let last = lines[maxLines - 1];
+    while (ctx.measureText(last + '…').width > maxWidth && last.length > 3) {
+      last = last.slice(0, -1);
+    }
+    if (lines.join(' ').length < String(text || '').length) {
+      lines[maxLines - 1] = last + '…';
+    }
+  }
+  lines.forEach((ln, idx) => {
+    ctx.fillText(ln, x, y + idx * lineHeight);
+  });
+  return lines.length;
+}
+
+function dataUrlToUint8Array(dataUrl) {
+  const b64 = dataUrl.split(',')[1] || '';
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+/**
+ * Pure-JS Binary PDF 1.4 Builder (Zero External Dependencies, 100% Offline)
+ * Menggabungkan halaman JPEG A4 beresolusi tinggi ke dalam 1 file .pdf standar.
+ */
+function buildPdfFromJpegPages(pages) {
+  const enc = new TextEncoder();
+  const chunks = [];
+  let offset = 0;
+  const offsets = [0]; // obj 0 free entry
+
+  function pushStr(str) {
+    const b = enc.encode(str);
+    chunks.push(b);
+    offset += b.length;
+  }
+  function pushBytes(u8) {
+    chunks.push(u8);
+    offset += u8.length;
+  }
+
+  // Header + binary comment
+  pushStr('%PDF-1.4\n');
+  pushBytes(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));
+
+  const pageCount = pages.length;
+  const kidsRefs = [];
+  for (let i = 0; i < pageCount; i++) {
+    kidsRefs.push(`${5 + i * 3} 0 R`);
+  }
+
+  // Obj 1: Catalog
+  offsets.push(offset);
+  pushStr('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+
+  // Obj 2: Pages
+  offsets.push(offset);
+  pushStr(`2 0 obj\n<< /Type /Pages /Kids [ ${kidsRefs.join(' ')} ] /Count ${pageCount} >>\nendobj\n`);
+
+  const pageW = 595.28; // A4 width in pt
+  const pageH = 841.89; // A4 height in pt
+
+  for (let i = 0; i < pageCount; i++) {
+    const pg = pages[i];
+    const imgObjId = 3 + i * 3;
+    const contentObjId = 4 + i * 3;
+    const pageObjId = 5 + i * 3;
+
+    // Image XObject
+    offsets.push(offset);
+    pushStr(`${imgObjId} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pg.width} /Height ${pg.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pg.bytes.length} >>\nstream\n`);
+    pushBytes(pg.bytes);
+    pushStr('\nendstream\nendobj\n');
+
+    // Content Stream
+    const contentStr = `q\n${pageW.toFixed(2)} 0 0 ${pageH.toFixed(2)} 0 0 cm\n/Im0 Do\nQ\n`;
+    const contentBytes = enc.encode(contentStr);
+    offsets.push(offset);
+    pushStr(`${contentObjId} 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n`);
+    pushBytes(contentBytes);
+    pushStr('endstream\nendobj\n');
+
+    // Page Object
+    offsets.push(offset);
+    pushStr(`${pageObjId} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 ${pageW.toFixed(2)} ${pageH.toFixed(2)} ] /Resources << /XObject << /Im0 ${imgObjId} 0 R >> >> /Contents ${contentObjId} 0 R >>\nendobj\n`);
+  }
+
+  // Cross-reference table
+  const xrefOffset = offset;
+  const totalObjs = offsets.length;
+  pushStr(`xref\n0 ${totalObjs}\n0000000000 65535 f \n`);
+  for (let i = 1; i < totalObjs; i++) {
+    pushStr(String(offsets[i]).padStart(10, '0') + ' 00000 n \n');
+  }
+
+  pushStr(`trailer\n<< /Size ${totalObjs} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+
+async function renderCatalogPageToJpeg(mode, pageItems, pageNum, totalPages, totalProductsCount, layout, includeMultiUnit, storeLogoImg) {
+  const W = 1240;
+  const H = 1754;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const isGrosir = mode === 'grosir';
+  const primaryDark = isGrosir ? '#065f46' : '#1e3a8a';
+  const primaryMain = isGrosir ? '#059669' : '#2563eb';
+  const primarySoft = isGrosir ? '#ecfdf5' : '#eff6ff';
+  const primaryBorder = isGrosir ? '#a7f3d0' : '#bfdbfe';
+
+  // Background A4 white
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // Header Banner
+  const headerH = 148;
+  const grad = ctx.createLinearGradient(0, 0, W, headerH);
+  grad.addColorStop(0, primaryDark);
+  grad.addColorStop(1, primaryMain);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, headerH);
+
+  // Store Logo
+  let textStartX = 48;
+  if (storeLogoImg) {
+    ctx.save();
+    drawCanvasRoundRect(ctx, 44, 28, 92, 92, 18);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.clip();
+    ctx.drawImage(storeLogoImg, 50, 34, 80, 80);
+    ctx.restore();
+    textStartX = 154;
+  }
+
+  const storeName = (storeConfig.storeName || 'Hidayat Store').toUpperCase();
+  const storeAddress = storeConfig.storeAddress || '';
+  const storePhone = storeConfig.storePhone || '';
+  const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = '900 32px Inter, Arial, sans-serif';
+  ctx.fillText(storeName, textStartX, 30);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.font = '600 16px Inter, Arial, sans-serif';
+  if (storeAddress) ctx.fillText(storeAddress.slice(0, 72), textStartX, 72);
+  if (storePhone) ctx.fillText(`Telp / WA: ${storePhone}`, textStartX, 98);
+
+  // Right Mode Badge
+  const badgeW = 350;
+  const badgeH = 56;
+  const badgeX = W - badgeW - 44;
+  const badgeY = 30;
+  drawCanvasRoundRect(ctx, badgeX, badgeY, badgeW, badgeH, 14);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  ctx.fillStyle = primaryDark;
+  ctx.font = '900 21px Inter, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(isGrosir ? 'KATALOG HARGA GROSIRAN' : 'KATALOG HARGA ECERAN', badgeX + badgeW / 2, badgeY + badgeH / 2);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.font = '700 15px Inter, Arial, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`Tanggal: ${dateStr}  •  Total: ${totalProductsCount} Barang`, W - 44, 100);
+
+  // Grid Geometry
+  const padX = 44;
+  const topY = headerH + 26;
+  const footerH = 54;
+  const availW = W - padX * 2;
+  const availH = H - topY - footerH - 12;
+  const gapX = 22;
+  const gapY = 20;
+  const cardW = (availW - gapX * (layout.cols - 1)) / layout.cols;
+  const cardH = (availH - gapY * (layout.rows - 1)) / layout.rows;
+
+  // Preload all images on this page in parallel
+  const loadedImgs = await Promise.all(pageItems.map(p => loadCatalogImageAsync(getProductVisualSrc(p))));
+
+  for (let i = 0; i < pageItems.length; i++) {
+    const p = pageItems[i];
+    const imgObj = loadedImgs[i];
+    const col = i % layout.cols;
+    const row = Math.floor(i / layout.cols);
+    const cx = padX + col * (cardW + gapX);
+    const cy = topY + row * (cardH + gapY);
+
+    // Card Frame
+    drawCanvasRoundRect(ctx, cx, cy, cardW, cardH, 18);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = primaryBorder;
+    ctx.stroke();
+
+    // Photo Area
+    const photoPad = 12;
+    const photoH = layout.rows === 4 ? Math.round(cardH * 0.34) : Math.round(cardH * 0.38);
+    const px = cx + photoPad;
+    const py = cy + photoPad;
+    const pw = cardW - photoPad * 2;
+
+    ctx.save();
+    drawCanvasRoundRect(ctx, px, py, pw, photoH, 12);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fill();
+    ctx.clip();
+    if (imgObj && imgObj.width > 0 && imgObj.height > 0) {
+      // Aspect-ratio fit/cover neatly inside photo box
+      const imgRatio = imgObj.width / imgObj.height;
+      const boxRatio = pw / photoH;
+      let dw = pw, dh = photoH, dx = px, dy = py;
+      if (imgRatio > boxRatio) {
+        dw = pw;
+        dh = pw / imgRatio;
+        dy = py + (photoH - dh) / 2;
+      } else {
+        dh = photoH;
+        dw = photoH * imgRatio;
+        dx = px + (pw - dw) / 2;
+      }
+      ctx.drawImage(imgObj, dx, dy, dw, dh);
+    }
+    ctx.restore();
+
+    // Category pill on top-left of photo
+    const catLabel = String(p.category || 'Umum').slice(0, 18);
+    ctx.font = '800 12px Inter, Arial, sans-serif';
+    const catW = Math.min(pw - 16, ctx.measureText(catLabel).width + 18);
+    drawCanvasRoundRect(ctx, px + 8, py + 8, catW, 24, 12);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.fill();
+    ctx.fillStyle = '#334155';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(catLabel, px + 17, py + 20);
+
+    // Rack badge on top-right if present
+    const rackVal = getProductRackDisplay(p);
+    if (rackVal) {
+      const rackTxt = rackVal.slice(0, 14);
+      const rW = ctx.measureText(rackTxt).width + 16;
+      drawCanvasRoundRect(ctx, px + pw - rW - 8, py + 8, rW, 24, 12);
+      ctx.fillStyle = '#fef3c7';
+      ctx.fill();
+      ctx.fillStyle = '#92400e';
+      ctx.textAlign = 'center';
+      ctx.fillText(rackTxt, px + pw - rW / 2 - 8, py + 20);
+    }
+
+    // Product Name
+    let curY = py + photoH + 12;
+    ctx.fillStyle = '#0f172a';
+    ctx.font = layout.rows === 4 ? '800 16px Inter, Arial, sans-serif' : '800 18px Inter, Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const lineH = layout.rows === 4 ? 20 : 23;
+    drawWrappedCanvasText(ctx, p.name || 'Produk', cx + 14, curY, cardW - 28, lineH, 2);
+    curY += lineH * 2 + 6;
+
+    // Price Box
+    const basePrice = isGrosir
+      ? (parseFloat(p.priceWholesale) > 0 ? parseFloat(p.priceWholesale) : (parseFloat(p.priceRetail) || 0))
+      : (parseFloat(p.priceRetail) || 0);
+    const units = getAllUnitsOfProduct(p);
+    const showExtraUnits = includeMultiUnit && units.length > 1;
+    const extraCount = showExtraUnits ? Math.min(2, units.length - 1) : 0;
+    const priceBoxH = (layout.rows === 4 ? 58 : 66) + extraCount * 19;
+
+    drawCanvasRoundRect(ctx, cx + 12, curY, cardW - 24, priceBoxH, 12);
+    ctx.fillStyle = primarySoft;
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = primaryBorder;
+    ctx.stroke();
+
+    ctx.fillStyle = primaryMain;
+    ctx.font = '800 12px Inter, Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(isGrosir ? 'HARGA GROSIRAN' : 'HARGA ECERAN', cx + 22, curY + 8);
+
+    if (isGrosir) {
+      const minText = `Min. ${p.minWholesale || 1} ${p.unit || 'Pcs'}`;
+      ctx.fillStyle = primaryDark;
+      ctx.font = '800 12px Inter, Arial, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(minText, cx + cardW - 22, curY + 8);
+    } else {
+      ctx.fillStyle = '#64748b';
+      ctx.font = '700 12px Inter, Arial, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(`Stok: ${p.stock || 0} ${p.unit || 'Pcs'}`, cx + cardW - 22, curY + 8);
+    }
+
+    ctx.fillStyle = primaryDark;
+    ctx.font = layout.rows === 4 ? '900 22px Inter, Arial, sans-serif' : '900 25px Inter, Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Rp ${basePrice.toLocaleString('id-ID')} /${p.unit || 'Pcs'}`, cx + 22, curY + 26);
+
+    if (showExtraUnits) {
+      let ey = curY + (layout.rows === 4 ? 54 : 60);
+      units.slice(1, 3).forEach(u => {
+        const uPrice = isGrosir ? (u.priceWholesale || u.priceRetail || 0) : (u.priceRetail || 0);
+        ctx.fillStyle = '#334155';
+        ctx.font = '700 12px Inter, Arial, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${u.name} (isi ${u.qty})`, cx + 22, ey);
+        ctx.fillStyle = primaryDark;
+        ctx.font = '800 12px Inter, Arial, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(`Rp ${uPrice.toLocaleString('id-ID')}`, cx + cardW - 22, ey);
+        ey += 18;
+      });
+    }
+
+    // Barcode Box anchored neatly at bottom of card
+    const barcodeH = layout.rows === 4 ? 54 : 64;
+    const barcodeY = cy + cardH - barcodeH - 12;
+    drawCanvasRoundRect(ctx, cx + 12, barcodeY, cardW - 24, barcodeH, 10);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.stroke();
+
+    drawCode128OnCanvas(ctx, p.sku, cx + 18, barcodeY + 4, cardW - 36, barcodeH - 8);
+  }
+
+  // Footer
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(padX, H - footerH);
+  ctx.lineTo(W - padX, H - footerH);
+  ctx.stroke();
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '600 14px Inter, Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${storeName}  •  ${isGrosir ? 'Daftar Harga Grosiran' : 'Daftar Harga Eceran'}`, padX, H - footerH / 2);
+
+  ctx.fillStyle = '#334155';
+  ctx.font = '800 14px Inter, Arial, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(`Halaman ${pageNum} / ${totalPages}`, W - padX, H - footerH / 2);
+
+  const jpegUrl = canvas.toDataURL('image/jpeg', 0.9);
+  return {
+    bytes: dataUrlToUint8Array(jpegUrl),
+    width: W,
+    height: H
+  };
+}
+
+function updateCatalogPdfProgressUI(visible, labelText = '', pct = 0) {
+  const box = document.getElementById('catalogPdfProgressBox');
+  const lbl = document.getElementById('catalogPdfProgressLabel');
+  const pctEl = document.getElementById('catalogPdfProgressPct');
+  const bar = document.getElementById('catalogPdfProgressBar');
+  if (!box) return;
+  if (visible) {
+    box.classList.remove('hidden');
+    if (lbl) lbl.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-indigo-600"></i> <span>${escapeHtml(labelText)}</span>`;
+    if (pctEl) pctEl.innerText = `${Math.round(pct)}%`;
+    if (bar) bar.style.width = `${Math.min(100, Math.max(0, Math.round(pct)))}%`;
+  } else {
+    box.classList.add('hidden');
+  }
+}
+
+function setCatalogExportButtonsDisabled(disabled) {
+  ['btnExportBothCatalogPdf', 'btnExportRetailCatalogPdf', 'btnExportWholesaleCatalogPdf'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = disabled;
+  });
+}
+
+function sanitizePdfFilenamePart(str) {
+  return String(str || 'Toko').trim().replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'Toko';
+}
+
+function triggerBlobPdfDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+async function generateSingleCatalogPdfBlob(mode, products, progressPrefix, basePct, spanPct) {
+  const layout = getCatalogLayoutConfig();
+  const includeMulti = document.getElementById('catalogIncludeMultiUnit')?.checked !== false;
+  const logoSrc = storeConfig.storeLogo || window.DEFAULT_APP_LOGO_DATA_URI || '';
+  const storeLogoImg = await loadCatalogImageAsync(logoSrc);
+
+  const totalPages = Math.max(1, Math.ceil(products.length / layout.perPage));
+  const jpegPages = [];
+
+  for (let p = 0; p < totalPages; p++) {
+    const slice = products.slice(p * layout.perPage, (p + 1) * layout.perPage);
+    const pct = basePct + ((p + 1) / totalPages) * spanPct;
+    updateCatalogPdfProgressUI(true, `${progressPrefix} — Halaman ${p + 1} dari ${totalPages}...`, pct);
+    // Beri napas singkat pada browser agar UI progress bar tetap responsif
+    await new Promise(r => setTimeout(r, 15));
+    const pageObj = await renderCatalogPageToJpeg(mode, slice, p + 1, totalPages, products.length, layout, includeMulti, storeLogoImg);
+    jpegPages.push(pageObj);
+  }
+
+  return buildPdfFromJpegPages(jpegPages);
+}
+
+async function exportCatalogPdf(mode = 'eceran') {
+  if (isExportingCatalogPdf) return;
+  const products = await getFilteredCatalogProducts();
+  if (products.length === 0) {
+    showCustomAlert('Katalog Kosong', 'Belum ada data barang yang sesuai filter untuk dibuat file PDF. Tambahkan barang di menu Produk/Stok terlebih dahulu.', 'warning');
+    return;
+  }
+
+  isExportingCatalogPdf = true;
+  setCatalogExportButtonsDisabled(true);
+  try {
+    const isGrosir = mode === 'grosir';
+    const labelMode = isGrosir ? 'Grosiran' : 'Eceran';
+    const storeSlug = sanitizePdfFilenamePart(storeConfig.storeName || 'HidayatPOS');
+    const dateSlug = new Date().toISOString().split('T')[0];
+    const filename = `Katalog_Barang_${labelMode}_${storeSlug}_${dateSlug}.pdf`;
+
+    const blob = await generateSingleCatalogPdfBlob(mode, products, `Membuat PDF Katalog ${labelMode}`, 5, 90);
+    updateCatalogPdfProgressUI(true, `Mengunduh ${filename}...`, 100);
+    triggerBlobPdfDownload(blob, filename);
+
+    setTimeout(() => updateCatalogPdfProgressUI(false), 700);
+    showCustomAlert(
+      `PDF Katalog ${labelMode} Berhasil Diunduh`,
+      `File "${filename}" (${products.length} barang lengkap dengan Foto, Barcode & Harga ${labelMode}) telah diunduh.`,
+      'warning'
+    );
+  } catch (err) {
+    updateCatalogPdfProgressUI(false);
+    showCustomAlert('Gagal Membuat PDF', 'Terjadi kendala saat membuat file PDF katalog: ' + (err && err.message ? err.message : err), 'danger');
+  } finally {
+    isExportingCatalogPdf = false;
+    setCatalogExportButtonsDisabled(false);
+  }
+}
+
+async function exportBothCatalogPdfs() {
+  if (isExportingCatalogPdf) return;
+  const products = await getFilteredCatalogProducts();
+  if (products.length === 0) {
+    showCustomAlert('Katalog Kosong', 'Belum ada data barang yang sesuai filter untuk dibuat 2 file PDF. Tambahkan barang di menu Produk/Stok terlebih dahulu.', 'warning');
+    return;
+  }
+
+  isExportingCatalogPdf = true;
+  setCatalogExportButtonsDisabled(true);
+  try {
+    const storeSlug = sanitizePdfFilenamePart(storeConfig.storeName || 'HidayatPOS');
+    const dateSlug = new Date().toISOString().split('T')[0];
+    const fileEceran = `Katalog_Barang_Eceran_${storeSlug}_${dateSlug}.pdf`;
+    const fileGrosir = `Katalog_Barang_Grosiran_${storeSlug}_${dateSlug}.pdf`;
+
+    // 1. Buat & Unduh File PDF 1: Eceran
+    const blobEceran = await generateSingleCatalogPdfBlob('eceran', products, 'File 1/2: Katalog Eceran', 2, 46);
+    triggerBlobPdfDownload(blobEceran, fileEceran);
+
+    // Jeda singkat agar browser tidak memblokir unduhan file kedua
+    updateCatalogPdfProgressUI(true, 'Menyiapkan File 2/2: Katalog Grosiran...', 50);
+    await new Promise(r => setTimeout(r, 650));
+
+    // 2. Buat & Unduh File PDF 2: Grosiran
+    const blobGrosir = await generateSingleCatalogPdfBlob('grosir', products, 'File 2/2: Katalog Grosiran', 52, 46);
+    updateCatalogPdfProgressUI(true, `Mengunduh ${fileGrosir}...`, 100);
+    triggerBlobPdfDownload(blobGrosir, fileGrosir);
+
+    setTimeout(() => updateCatalogPdfProgressUI(false), 700);
+    showCustomAlert(
+      '2 File PDF Katalog Berhasil Diunduh!',
+      `1) ${fileEceran} dan 2) ${fileGrosir} (${products.length} barang lengkap dengan Foto, Barcode & Harga) telah berhasil dibuat dan diunduh.`,
+      'warning'
+    );
+  } catch (err) {
+    updateCatalogPdfProgressUI(false);
+    showCustomAlert('Gagal Membuat 2 File PDF', 'Terjadi kendala saat membuat file PDF katalog: ' + (err && err.message ? err.message : err), 'danger');
+  } finally {
+    isExportingCatalogPdf = false;
+    setCatalogExportButtonsDisabled(false);
+  }
+}
 
 initProgressiveWebApp();
 </script>
